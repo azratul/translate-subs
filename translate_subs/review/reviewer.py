@@ -1,0 +1,144 @@
+"""LLM review pass and the safe-fix policy.
+
+The model judges what deterministic checks cannot (gender, pronouns, tú/usted,
+literalness, naturalness, loss of meaning) and proposes fixes. Whether a fix may be
+auto-applied is decided here, never by trusting the model blindly.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+
+from translate_subs.ai.claude_cli import extract_json
+from translate_subs.ai.provider import ProviderError, retry_provider_call
+from translate_subs.review.models import Finding, ReviewLine
+
+Runner = Callable[[str], str]
+
+# Kinds eligible for automatic correction. Everything else is left for a human.
+SAFE_KINDS = {"glossary", "proper_name", "honorific", "empty_line", "missing_id", "gender"}
+
+
+def build_review_prompt(
+    lines: list[ReviewLine],
+    *,
+    glossary: dict[str, str],
+    genders: dict[str, str],
+    target: str,
+    source_lang: str = "source",
+) -> str:
+    src_label = source_lang.upper()
+    body = "\n".join(
+        f"[{line.id}] {line.speaker or '?'}\n"
+        f"  {src_label}: {line.source}\n  {target}: {line.target}"
+        for line in lines
+    )
+    glossary_block = "; ".join(f"{k} -> {v}" for k, v in glossary.items()) if glossary else "(none)"
+    gender_block = "; ".join(f"{k}: {v}" for k, v in genders.items()) if genders else "(none)"
+    return (
+        f"You are reviewing a {target} subtitle translation. For each line you are "
+        f"given the {src_label} source and its translation.\n\n"
+        f"Confirmed character genders: {gender_block}\n"
+        f"Series glossary: {glossary_block}\n\n"
+        "Report problems using exactly one of these `kind` tokens:\n"
+        "- gender (wrong grammatical gender)\n"
+        "- pronoun (wrong pronoun)\n"
+        "- formality (inconsistent register/politeness for the target language)\n"
+        "- proper_name (mistranslated proper name)\n"
+        "- glossary (glossary rendering not respected)\n"
+        "- honorific (broken honorific)\n"
+        "- literal (overly literal phrasing)\n"
+        "- unnatural (unnatural phrasing)\n"
+        "- meaning (loss of meaning)\n"
+        "Also report GLOBAL inconsistencies across the episode (a character's gender "
+        "changing, a term translated several ways, inconsistent names).\n\n"
+        "For each problem give: scope ('line' or 'global'), id (the line id, or null "
+        "for global), kind (one token from the list), message, current (the current "
+        "translation), suggested (the corrected line, or null if it needs a human), and "
+        "auto_safe (true ONLY for objective fixes: kind glossary, proper_name, honorific, "
+        "or gender when the character's gender is confirmed above). Jokes, double "
+        "meanings, ambiguous gender, cultural adaptation and tone are never auto_safe.\n\n"
+        "Reply with ONLY a JSON array of such objects, no prose, no code fences.\n\n"
+        "LINES:\n"
+        f"{body}\n"
+    )
+
+
+def parse_findings(raw: str) -> list[Finding]:
+    text = extract_json(raw)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ProviderError(
+            f"Review reply was not valid JSON: {exc}",
+            retryable=True,
+        ) from exc
+    if isinstance(data, dict):
+        data = data.get("findings", [])
+    if not isinstance(data, list):
+        raise ProviderError(
+            "Review reply must be a JSON array of findings.",
+            retryable=True,
+        )
+
+    findings: list[Finding] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        findings.append(
+            Finding(
+                scope=item.get("scope", "line"),
+                id=item.get("id"),
+                kind=str(item.get("kind", "other")),
+                message=str(item.get("message", "")),
+                current=item.get("current"),
+                suggested=item.get("suggested"),
+                auto=bool(item.get("auto_safe", False)),
+            )
+        )
+    return findings
+
+
+def apply_safe_policy(
+    findings: list[Finding],
+    lines: list[ReviewLine],
+    confirmed_genders: dict[str, str],
+) -> None:
+    """Demote `auto` for anything that is not a vetted safe correction (in place)."""
+    speaker_by_id = {line.id: (line.speaker or "") for line in lines}
+    for f in findings:
+        has_nonempty_fix = f.suggested is not None and bool(f.suggested.strip())
+        if not (
+            f.auto and f.has_fix and has_nonempty_fix and f.scope == "line" and f.kind in SAFE_KINDS
+        ):
+            f.auto = False
+            continue
+        if f.kind == "gender":
+            speaker = speaker_by_id.get(f.id or "", "")
+            if confirmed_genders.get(speaker) not in ("male", "female"):
+                f.auto = False
+
+
+def review_lines(
+    lines: list[ReviewLine],
+    *,
+    glossary: dict[str, str],
+    genders: dict[str, str],
+    target: str,
+    source_lang: str = "source",
+    runner: Runner,
+    max_retries: int = 2,
+) -> list[Finding]:
+    if not lines:
+        return []
+    prompt = build_review_prompt(
+        lines, glossary=glossary, genders=genders, target=target, source_lang=source_lang
+    )
+    findings = retry_provider_call(
+        lambda: parse_findings(runner(prompt)),
+        max_retries=max_retries,
+        label="Review",
+    )
+    apply_safe_policy(findings, lines, genders)
+    return findings

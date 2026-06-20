@@ -1,0 +1,40 @@
+"""Render a ReviewReport to Markdown (episode.review.md)."""
+
+from __future__ import annotations
+
+from translate_subs.review.models import Finding, ReviewReport
+
+
+def _label(f: Finding) -> str:
+    if f.scope == "global":
+        return f"Global ({f.kind})"
+    return f"Line {f.id} ({f.kind})"
+
+
+def render_markdown(report: ReviewReport) -> str:
+    out = [f"# Review {report.episode}", ""]
+
+    out.append("## Warnings")
+    warnings = report.warnings()
+    if warnings:
+        out += [f"- {_label(f)}: {f.message}" for f in warnings]
+    else:
+        out.append("_None._")
+    out.append("")
+
+    out.append("## Suggested fixes")
+    fixes = report.fixes()
+    if fixes:
+        for f in fixes:
+            tag = " [auto]" if f.auto else ""
+            out.append(f"### {_label(f)}{tag}")
+            if f.message:
+                out.append(f"_{f.message}_")
+            out.append(f"Current:   {f.current or ''}")
+            out.append(f"Suggested: {f.suggested}")
+            out.append("")
+    else:
+        out.append("_None._")
+        out.append("")
+
+    return "\n".join(out).rstrip() + "\n"

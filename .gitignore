@@ -1,0 +1,14 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual envs
+.venv/
+venv/
+
+dist/
+data/
+.coverage
+
+# OS / editor cruft
+.DS_Store

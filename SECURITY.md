@@ -1,0 +1,49 @@
+# Security Policy
+
+## Reporting a vulnerability
+
+Please report suspected vulnerabilities privately via GitHub Security Advisories
+("Report a vulnerability" on the repository's *Security* tab) rather than a public issue.
+You can expect an initial response within a few days.
+
+## Threat model
+
+`translate-subs` is a local command-line tool that you run on your own machine, on media you
+choose. Keep two things in mind.
+
+### 1. Subtitle content is untrusted input sent to a translation backend
+
+The tool extracts the *visible text* of each line and sends it to the backend you select
+(`--provider`). That text leaves your machine whenever the backend is a remote service:
+
+- **Agent CLIs** (`claude`, `codex`, `gemini`, `opencode`) and **`litellm`** with a hosted
+  model send the text to that provider. Treat this like any third-party API: the content may
+  be transmitted, logged, or retained per that provider's policy.
+- **`ollama`** (and `litellm` pointed at a local model) keeps everything on your machine.
+
+If your subtitles are sensitive, prefer a local backend.
+
+### 2. Prompt injection when using agent CLIs with tool access
+
+A subtitle file from an untrusted source can embed adversarial text ("ignore your
+instructions and …"). If you route translation through an **agent CLI that has access to a
+shell, the filesystem, or other tools**, a crafted subtitle could in principle try to induce
+unintended actions.
+
+Mitigations, in order of effectiveness:
+
+- For bulk translation of subtitles you did not create yourself, prefer a **pure-inference
+  backend** (`ollama`, or `litellm` to an inference endpoint). These have no tools to abuse.
+- If you use an agent CLI, run it with **minimal permissions / no tool access**, and avoid
+  pointing it at credentials or sensitive directories.
+- The tool never hands the raw subtitle file to the backend: content is structured as
+  `[ID] text` data lines, which reduces — but does not eliminate — injection risk.
+
+There is **no sandbox** around the agent process; isolation is the responsibility of how you
+invoke and permission that CLI.
+
+## Scope
+
+Reports about the deterministic core (parsing, reinsertion, validation, path handling) and
+about the documented backends are in scope. The behaviour of third-party agent CLIs and model
+providers themselves is out of scope — report those to their respective projects.
