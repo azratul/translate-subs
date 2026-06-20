@@ -17,10 +17,11 @@ classifiers = [
     "Environment :: Console",
 ]
 dependencies = [
-    # Floors track the versions the suite is actually run against; older typer mishandles this
-    # CLI's combined option flags, and the floor stays at the tested pysubs2 line.
+    # Floors track the versions the suite is actually run against. typer < 0.15.4 breaks with
+    # Click >= 8.2 (e.g. `--help` raises on a clean install with Click 8.4.x); 0.15.4 is the first
+    # release that works against it. The pysubs2 floor stays at the tested line.
     "pysubs2>=1.8",
-    "typer>=0.13",
+    "typer>=0.15.4",
     "pydantic>=2.7",
     "rich>=13.7",
 ]

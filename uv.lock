@@ -2138,7 +2138,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pysubs2", specifier = ">=1.8" },
     { name = "rich", specifier = ">=13.7" },
-    { name = "typer", specifier = ">=0.13" },
+    { name = "typer", specifier = ">=0.15.4" },
 ]
 provides-extras = ["litellm"]
 
