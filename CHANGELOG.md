@@ -15,6 +15,9 @@ move these entries under a dated version heading.
   since it was analyzed. Legacy context files without the fingerprint are not flagged.
 - Command-layer wiring tests for every CLI command plus direct workflow tests, lifting overall
   coverage to ~91% (the `commands/` and `workflows/` packages were the thin spots after the split).
+- Translation now uses the analyzed per-character speech style/register (relevance-filtered per
+  block, like gender) and the episode summary (in the always-sent base rules) — context that was
+  recorded by `analyze` but previously ignored when translating.
 
 ### Fixed
 - `batch --no-resume` is now honoured: the flag was defined but never forwarded to each episode's

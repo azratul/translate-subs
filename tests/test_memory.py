@@ -246,6 +246,33 @@ def test_rules_for_text_keeps_only_referenced_memory():
     assert "Target locale/variant: es-latam." in bare
 
 
+def test_rules_use_speech_style_and_episode_summary():
+    from translate_subs.ai.analysis import EpisodeCharacter, EpisodeContext
+
+    pm = ProjectMemory(
+        project_dir=".",
+        memory=SeriesMemory(
+            characters=[CharacterMemory(name="Akira", gender="male", speech_style="blunt, casual")]
+        ),
+        style_guide=StyleGuide(locale="es-latam"),
+    )
+    ctx = EpisodeContext(
+        episode_summary="Akira confronts his rival at the festival.",
+        characters=[EpisodeCharacter(name="Yumi", gender="female", speech_style="polite, formal")],
+    )
+    mr = build_memory_rules(pm, ctx)
+
+    # The summary rides in base (always sent), even for a block mentioning nobody known.
+    bare = "\n".join(rules_for_text(mr, "Hello there.", []))
+    assert "Episode context: Akira confronts his rival" in bare
+    assert "Speech style" not in bare  # no referenced character -> no speech-style line
+
+    # Speech style is relevance-filtered like gender: only the referenced character's appears.
+    akira = "\n".join(rules_for_text(mr, "Akira spoke first.", ["Akira"]))
+    assert "Speech style by character: Akira: blunt, casual." in akira
+    assert "Yumi" not in akira
+
+
 def test_compact_project_memory_prunes_and_merges():
     pm = ProjectMemory(
         project_dir=".",

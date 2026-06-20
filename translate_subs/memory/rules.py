@@ -54,6 +54,18 @@ def translation_rules(pm: ProjectMemory, ctx: EpisodeContext | None) -> list[str
         listing = "; ".join(f"{name}: {gender}" for name, gender in genders.items())
         rules.append(f"Grammatical gender by character: {listing}.")
 
+    speech_styles: dict[str, str] = {}
+    if ctx:
+        for ch in ctx.characters:
+            if ch.speech_style and ch.speech_style.strip():
+                speech_styles[ch.name] = ch.speech_style.strip()
+    for cm in pm.memory.characters:  # series wins
+        if cm.speech_style and cm.speech_style.strip():
+            speech_styles[cm.name] = cm.speech_style.strip()
+    if speech_styles:
+        listing = "; ".join(f"{name}: {style}" for name, style in speech_styles.items())
+        rules.append(f"Speech style by character: {listing}.")
+
     relationships = []
     for cm in pm.memory.characters:
         for other, rel in cm.relationships.items():
@@ -63,6 +75,8 @@ def translation_rules(pm: ProjectMemory, ctx: EpisodeContext | None) -> list[str
 
     if ctx:
         rules.extend(ctx.translation_rules)
+        if ctx.episode_summary.strip():
+            rules.append(f"Episode context: {ctx.episode_summary.strip()}")
 
     return rules
 
@@ -71,16 +85,21 @@ def translation_rules(pm: ProjectMemory, ctx: EpisodeContext | None) -> list[str
 class MemoryRules:
     """Series memory split for per-block relevance filtering."""
 
-    base: list[str]  # style guide + episode directives: always sent
+    base: list[str]  # style guide + episode directives + summary: always sent
     glossary: dict[str, str]
     genders: dict[str, str]
     relationships: list[tuple[str, str, str]]  # (name, other, relationship)
+    speech_styles: dict[str, str]  # character -> speech style/register hint
 
 
 def build_memory_rules(pm: ProjectMemory, ctx: EpisodeContext | None) -> MemoryRules:
     base = style_guide_rules(pm.style_guide)
     if ctx:
         base = base + list(ctx.translation_rules)
+        # A short episode synopsis grounds pronoun/gender/tone choices; sent with every block
+        # (it is only 2-4 sentences), so the model has the situation even far from the analysis.
+        if ctx.episode_summary.strip():
+            base = base + [f"Episode context: {ctx.episode_summary.strip()}"]
 
     glossary = dict(ctx.glossary) if ctx else {}
     glossary.update(pm.glossary)  # series wins
@@ -96,12 +115,27 @@ def build_memory_rules(pm: ProjectMemory, ctx: EpisodeContext | None) -> MemoryR
         if cm.gender in ("male", "female"):
             genders[cm.name] = cm.gender
 
+    speech_styles: dict[str, str] = {}
+    if ctx:
+        for ch in ctx.characters:
+            if ch.speech_style and ch.speech_style.strip():
+                speech_styles[ch.name] = ch.speech_style.strip()
+    for cm in pm.memory.characters:  # series wins
+        if cm.speech_style and cm.speech_style.strip():
+            speech_styles[cm.name] = cm.speech_style.strip()
+
     relationships = [
         (ch.name, other, rel)
         for ch in pm.memory.characters
         for other, rel in ch.relationships.items()
     ]
-    return MemoryRules(base=base, glossary=glossary, genders=genders, relationships=relationships)
+    return MemoryRules(
+        base=base,
+        glossary=glossary,
+        genders=genders,
+        relationships=relationships,
+        speech_styles=speech_styles,
+    )
 
 
 def rules_for_text(mr: MemoryRules, text: str, speakers: Iterable[str]) -> list[str]:
@@ -124,6 +158,11 @@ def rules_for_text(mr: MemoryRules, text: str, speakers: Iterable[str]) -> list[
     if genders:
         listing = "; ".join(f"{name}: {g}" for name, g in genders.items())
         rules.append(f"Grammatical gender by character: {listing}.")
+
+    speech = {name: s for name, s in mr.speech_styles.items() if present(name)}
+    if speech:
+        listing = "; ".join(f"{name}: {s}" for name, s in speech.items())
+        rules.append(f"Speech style by character: {listing}.")
 
     relationships = [f"{a}-{b}: {r}" for a, b, r in mr.relationships if present(a) or present(b)]
     if relationships:
