@@ -26,6 +26,13 @@ move these entries under a dated version heading.
   block, like gender) and the episode summary (in the always-sent base rules) — context that was
   recorded by `analyze` but previously ignored when translating.
 
+### Added
+- Agent CLIs are now invoked with their own built-in restrictions, since subtitle text is
+  untrusted input fed to a tool-capable agent: `codex --sandbox read-only`, `claude` denies every
+  filesystem/exec/network/subagent tool (`--disallowedTools`) and ignores MCP servers
+  (`--strict-mcp-config`), `gemini --approval-mode plan` (read-only), and `opencode --pure` (no
+  external plugins, and never `--dangerously-skip-permissions`).
+
 ### Fixed
 - Per-series memory is now segmented by the **full target**, not the collapsed language code:
   `es-latam` and `es-ES` (or any two variants of one language) get separate memory subtrees instead

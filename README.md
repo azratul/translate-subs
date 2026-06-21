@@ -481,10 +481,13 @@ specific items follow.
   extraction) instead of chasing a number.
 - **Fuzz / property-based testing of ASS/SRT.** Parsing is delegated to `pysubs2`; the project
   tests its own extraction/reinsertion logic, not the parser's robustness to malformed input.
-- **Technical sandboxing of agent CLIs.** The tool orchestrates agent CLIs that *you* install and
-  authenticate; isolating them with containers/seccomp is out of scope. The realistic mitigation —
-  use a local inference backend (`ollama`) for untrusted subtitles, and don't grant an agent
-  tool/filesystem access — is documented in [SECURITY.md](SECURITY.md).
+- **OS-level sandboxing of agent CLIs.** Each agent CLI is invoked with its own built-in
+  restriction so untrusted subtitle text can't talk it into touching your files: `codex` runs
+  `--sandbox read-only`, `claude` denies every filesystem/exec/network/subagent tool and ignores
+  all MCP servers (`--strict-mcp-config`), `gemini` uses `--approval-mode plan` (read-only), and
+  `opencode` runs `--pure` (no external plugins) and is never given `--dangerously-skip-permissions`.
+  Full OS isolation (containers/seccomp) is still out of scope; the strongest mitigation — use a
+  local backend (`ollama`) for sensitive subtitles — is documented in [SECURITY.md](SECURITY.md).
 - **Token-aware block sizing and map-reduce analysis.** Blocks are sized by line count. Subtitle
   lines are inherently short (it's a subtitle), so a fixed line budget rarely strains a model's
   context; a token-budget scheduler and hierarchical analysis for very long inputs are not

@@ -59,7 +59,9 @@ class CodexCli:
     def __call__(self, prompt: str) -> str:
         with tempfile.TemporaryDirectory() as tmp:
             out_file = Path(tmp) / "last_message.txt"
-            cmd = [self.binary, "exec", "--skip-git-repo-check"]
+            # read-only sandbox: model-generated shell commands can't touch the filesystem,
+            # so untrusted subtitle text can't trick the agent into writing/deleting files.
+            cmd = [self.binary, "exec", "--skip-git-repo-check", "--sandbox", "read-only"]
             if self.model:
                 cmd += ["-m", self.model]
             if self.reasoning_effort:
@@ -82,7 +84,8 @@ class GeminiCli:
     timeout: int = 600
 
     def __call__(self, prompt: str) -> str:
-        cmd = [self.binary, "-o", "text"]
+        # plan = read-only approval mode: tools that would modify anything are auto-rejected.
+        cmd = [self.binary, "-o", "text", "--approval-mode", "plan"]
         if self.model:
             cmd += ["-m", self.model]
         cmd += ["-p", ""]  # empty flag prompt; real prompt is appended from stdin
@@ -98,7 +101,9 @@ class OpencodeCli:
     timeout: int = 600
 
     def __call__(self, prompt: str) -> str:
-        cmd = [self.binary, "run"]
+        # --pure: no external plugins; and we never pass --dangerously-skip-permissions, so
+        # tool actions still require (here, unavailable) approval rather than auto-running.
+        cmd = [self.binary, "run", "--pure"]
         if self.model:
             cmd += ["-m", self.model]
         cmd += [prompt]

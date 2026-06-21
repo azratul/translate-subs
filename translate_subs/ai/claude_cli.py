@@ -19,6 +19,24 @@ from translate_subs.ai.provider import ProviderError, backend_error_is_retryable
 
 DEFAULT_MODEL = "claude-opus-4-8"
 
+# Translation is pure text in / text out: the agent needs no tools. Subtitle text is untrusted
+# (it could try to talk the agent into reading or modifying personal files), so deny every
+# filesystem/exec/network/subagent tool and ignore all MCP servers. An unknown name here is
+# harmless — the CLI just ignores it — so the list can stay conservative across versions.
+_DENIED_TOOLS = (
+    "Bash",
+    "Edit",
+    "MultiEdit",
+    "Write",
+    "NotebookEdit",
+    "Read",
+    "Glob",
+    "Grep",
+    "WebFetch",
+    "WebSearch",
+    "Task",
+)
+
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
 
@@ -67,6 +85,9 @@ class ClaudeCli:
             self.model,
             "--output-format",
             "json",
+            "--strict-mcp-config",  # no --mcp-config passed -> ignore all configured MCP servers
+            "--disallowedTools",
+            *_DENIED_TOOLS,
         ]
         try:
             proc = subprocess.run(

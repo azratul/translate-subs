@@ -50,6 +50,26 @@ def test_run_raises_on_timeout(monkeypatch):
         cli_adapters._run("gemini", ["gemini"], "prompt", 10)
 
 
+def test_claude_cli_hardens_argv(monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return _completed(0, stdout='{"result": "ok", "is_error": false}')
+
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: "/usr/bin/claude")
+    monkeypatch.setattr(claude_cli.subprocess, "run", fake_run)
+
+    assert ClaudeCli()("prompt") == "ok"
+    cmd = captured["cmd"]
+    # No MCP servers, and every filesystem/exec/network/subagent tool is denied.
+    assert "--strict-mcp-config" in cmd
+    assert "--dangerously-skip-permissions" not in cmd
+    denied = cmd[cmd.index("--disallowedTools") + 1 :]
+    for tool in ("Bash", "Edit", "Write", "Read", "WebFetch", "Task"):
+        assert tool in denied
+
+
 def test_claude_cli_raises_when_binary_missing(monkeypatch):
     monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
     with pytest.raises(ProviderError, match="not found on PATH"):

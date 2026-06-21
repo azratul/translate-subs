@@ -44,6 +44,8 @@ def test_codex_uses_stdin_and_output_file(capture_run):
     assert CodexCli(model="o3")("PROMPT") == "FROM_FILE"
     cmd = capture_run["cmd"]
     assert cmd[1:3] == ["exec", "--skip-git-repo-check"]
+    # Hardening: model-generated commands run in a read-only sandbox.
+    assert cmd[cmd.index("--sandbox") + 1] == "read-only"
     assert "-m" in cmd and "o3" in cmd
     assert cmd[-1] == "-"  # stdin
     assert capture_run["input"] == "PROMPT"
@@ -53,6 +55,8 @@ def test_gemini_headless_via_stdin(capture_run):
     assert GeminiCli()("PROMPT") == "FROM_STDOUT"
     cmd = capture_run["cmd"]
     assert "-o" in cmd and "text" in cmd
+    # Hardening: plan = read-only approval mode (modifying tools are auto-rejected).
+    assert cmd[cmd.index("--approval-mode") + 1] == "plan"
     assert cmd[-2:] == ["-p", ""]
     assert capture_run["input"] == "PROMPT"
 
@@ -61,6 +65,9 @@ def test_opencode_passes_message_as_arg(capture_run):
     assert OpencodeCli()("PROMPT") == "FROM_STDOUT"
     cmd = capture_run["cmd"]
     assert cmd[1] == "run"
+    # Hardening: no external plugins, and never auto-approve permissions.
+    assert "--pure" in cmd
+    assert "--dangerously-skip-permissions" not in cmd
     assert cmd[-1] == "PROMPT"
     assert capture_run["input"] is None
 
