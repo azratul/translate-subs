@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pysubs2
@@ -1097,10 +1098,13 @@ def test_translate_does_not_leak_glossary_across_targets(tmp_path, monkeypatch):
 
 # --- generated files respect the umask (#1) ------------------------------------------
 
+# POSIX-only: Windows has no umask/group-other permission bits (os.chmod only toggles the
+# read-only flag), so a written file always reports 0o666 there.
+_posix_only = pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions only")
 
+
+@_posix_only
 def test_atomic_write_text_respects_umask(tmp_path):
-    import os
-
     from translate_subs.fsutil import atomic_write_text
 
     old = os.umask(0o022)
@@ -1114,9 +1118,8 @@ def test_atomic_write_text_respects_umask(tmp_path):
     assert mode == 0o644
 
 
+@_posix_only
 def test_translate_output_respects_umask(tmp_path, monkeypatch):
-    import os
-
     monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
     src = tmp_path / "ep.en.srt"
     _one_line_srt(src)
