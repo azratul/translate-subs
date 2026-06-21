@@ -126,6 +126,20 @@ def test_is_safe_improvement_accepts_and_rejects():
     assert not is_safe_improvement(original, measure("a\nb\nc", 0, 5000), limits)
 
 
+def test_tighten_report_colocates_with_episode_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    from translate_subs.workflows.support import episode_key, readability_path
+
+    subs = pysubs2.SSAFile()
+    subs.events.append(pysubs2.SSAEvent(start=0, end=2000, text="x" * 60))
+    srt = tmp_path / "Ep 01.es.srt"
+    subs.save(str(srt), format_="srt")
+
+    result = pipeline.tighten_subtitle(srt, target="es-latam", project="Show", use_llm=False)
+    # The report uses the full target dir and the hashed episode key, matching translate/review.
+    assert result.report_path == readability_path("Show", "es-latam", episode_key(srt))
+
+
 def test_tighten_rejects_compaction_that_does_not_improve(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
 

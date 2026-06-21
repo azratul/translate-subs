@@ -977,6 +977,40 @@ def test_translate_uses_project_settings_as_defaults(tmp_path, monkeypatch):
     assert captured["model"] == "qwen3:4b"
 
 
+def test_review_and_tighten_use_project_settings_as_defaults(tmp_path, monkeypatch):
+    from translate_subs import cli
+    from translate_subs.settings import ProjectSettings, save_settings
+
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    pdir = tmp_path / "projects" / "P"
+    pdir.mkdir(parents=True)
+    save_settings(pdir, ProjectSettings(provider="ollama", model="qwen3:4b", target="fr-FR"))
+
+    captured: dict = {}
+
+    def fake(*args, **kwargs):
+        captured.clear()
+        captured.update(kwargs)
+        return _fake_translate_result(tmp_path, [])  # shape unused by these assertions
+
+    src = tmp_path / "ep.en.srt"
+    src.write_text("", encoding="utf-8")
+    tgt = tmp_path / "ep.es.srt"
+    tgt.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "review_translation", fake)
+    CliRunner().invoke(app, ["review", str(src), str(tgt), "--project", "P", "--no-llm"])
+    assert captured["target"] == "fr-FR"
+    assert captured["provider"] == "ollama"
+    assert captured["model"] == "qwen3:4b"
+
+    monkeypatch.setattr(cli, "tighten_subtitle", fake)
+    CliRunner().invoke(app, ["tighten", str(tgt), "--project", "P", "--no-llm"])
+    assert captured["target"] == "fr-FR"
+    assert captured["provider"] == "ollama"
+    assert captured["model"] == "qwen3:4b"
+
+
 # --- batch --no-resume wiring (regression) -------------------------------------------
 
 

@@ -9,6 +9,9 @@ import typer
 from translate_subs.readability.metrics import ReadabilityLimits
 
 _AI_PROVIDER_HELP = "claude | codex | gemini | opencode"
+# Options that fall through to project settings.json when not given on the command line.
+_AUX_DEFAULTED = ("provider", "model", "target", "lang", "reasoning")
+_TIGHTEN_DEFAULTED = ("provider", "model", "target", "reasoning")
 
 
 def _runtime():
@@ -18,6 +21,7 @@ def _runtime():
 
 
 def review(
+    ctx: typer.Context,
     source: Path = typer.Argument(..., help="Original source (subtitle/video)."),
     translated: Path = typer.Argument(..., help="Translated .ass/.srt to review."),
     target: str = typer.Option(
@@ -43,6 +47,12 @@ def review(
 ):
     """Review a translation and write episode.review.md (optionally apply safe fixes)."""
     runtime = _runtime()
+    overrides = runtime._project_overrides(ctx, project, _AUX_DEFAULTED)
+    target = overrides.get("target", target)
+    provider = overrides.get("provider", provider)
+    model = overrides.get("model", model)
+    reasoning = overrides.get("reasoning", reasoning)
+    lang = overrides.get("lang", lang)
     try:
         result = runtime.review_translation(
             source,
@@ -85,7 +95,11 @@ def review(
 
 
 def tighten(
+    ctx: typer.Context,
     translated: Path = typer.Argument(..., help="Translated .ass/.srt to check for readability."),
+    target: str = typer.Option(
+        "es-latam", help="Target language/variant whose memory directory holds the report."
+    ),
     project: str | None = typer.Option(None, help="Project/series name."),
     max_chars_per_line: int = typer.Option(42, help="Max characters per visual line."),
     max_lines: int = typer.Option(2, help="Max lines per subtitle."),
@@ -103,6 +117,11 @@ def tighten(
 ):
     """Flag subtitles that break readability limits and compact them via the LLM."""
     runtime = _runtime()
+    overrides = runtime._project_overrides(ctx, project, _TIGHTEN_DEFAULTED)
+    target = overrides.get("target", target)
+    provider = overrides.get("provider", provider)
+    model = overrides.get("model", model)
+    reasoning = overrides.get("reasoning", reasoning)
     limits = ReadabilityLimits(
         max_chars_per_line=max_chars_per_line,
         max_lines=max_lines,
@@ -111,6 +130,7 @@ def tighten(
     try:
         result = runtime.tighten_subtitle(
             translated,
+            target=target,
             project=project,
             limits=limits,
             use_llm=not no_llm,

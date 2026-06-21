@@ -12,6 +12,8 @@ from translate_subs.settings import ProjectSettings, load_settings, save_setting
 
 _CONFLICT_HELP = "On contradicting suggestions: ask | keep | overwrite | flag."
 _AI_PROVIDER_HELP = "claude | codex | gemini | opencode"
+# Options that fall through to project settings.json when not given on the command line.
+_AUX_DEFAULTED = ("provider", "model", "target", "lang", "reasoning")
 
 
 def _runtime():
@@ -78,6 +80,7 @@ def config(
 
 
 def analyze(
+    ctx: typer.Context,
     input: Path = typer.Argument(..., help="Subtitle (.ass/.srt/...) or video file."),
     target: str = typer.Option(
         "es-latam", help="Target language/variant, e.g. es-latam, en, fr-FR, ja."
@@ -97,6 +100,12 @@ def analyze(
     """Analyze the episode (writes episode.context.json) and update series memory."""
     runtime = _runtime()
     policy = runtime._resolve_policy(on_conflict, non_interactive)
+    overrides = runtime._project_overrides(ctx, project, _AUX_DEFAULTED)
+    target = overrides.get("target", target)
+    provider = overrides.get("provider", provider)
+    model = overrides.get("model", model)
+    reasoning = overrides.get("reasoning", reasoning)
+    lang = overrides.get("lang", lang)
     try:
         result = runtime.analyze_subtitle(
             input,

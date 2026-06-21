@@ -34,13 +34,18 @@ Mitigations, in order of effectiveness:
 
 - For bulk translation of subtitles you did not create yourself, prefer a **pure-inference
   backend** (`ollama`, or `litellm` to an inference endpoint). These have no tools to abuse.
-- If you use an agent CLI, run it with **minimal permissions / no tool access**, and avoid
-  pointing it at credentials or sensitive directories.
+- Each agent CLI is already invoked with its own built-in restriction so it cannot act on a
+  crafted subtitle: `codex` runs `--sandbox read-only`; `claude` denies every
+  filesystem/exec/network/subagent tool (`--disallowedTools`) and ignores all MCP servers
+  (`--strict-mcp-config`); `gemini` runs `--approval-mode plan` (read-only); `opencode` runs
+  `--pure` (no external plugins) and is never passed `--dangerously-skip-permissions`. These are
+  the CLIs' own flags, not OS isolation — keep each CLI updated and don't override them.
 - The tool never hands the raw subtitle file to the backend: content is structured as
   `[ID] text` data lines, which reduces — but does not eliminate — injection risk.
 
-There is **no sandbox** around the agent process; isolation is the responsibility of how you
-invoke and permission that CLI.
+There is still **no OS-level sandbox** (container/seccomp) around the agent process; the built-in
+restrictions above are the first line of defence, and full isolation remains the responsibility of
+how you invoke and permission that CLI.
 
 ## Scope
 

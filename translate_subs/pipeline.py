@@ -325,6 +325,7 @@ def review_translation(
 def tighten_subtitle(
     translated_path: str | Path,
     *,
+    target: str = "es-latam",
     project: str | None = None,
     limits: ReadabilityLimits | None = None,
     use_llm: bool = True,
@@ -338,6 +339,7 @@ def tighten_subtitle(
     """Measure readability of a translated subtitle, compact over-limit lines, report."""
     return _tighten_subtitle(
         translated_path,
+        target=target,
         project=project,
         limits=limits,
         use_llm=use_llm,

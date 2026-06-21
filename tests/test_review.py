@@ -288,6 +288,65 @@ def test_review_translation_applies_only_safe_fixes(tmp_path, monkeypatch):
     assert reloaded.events[1].plaintext == "Vámonos."  # literal fix not applied
 
 
+def test_review_apply_skips_conflicting_same_line_fixes(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+
+    src = pysubs2.SSAFile()
+    src.events.append(pysubs2.SSAEvent(start=1000, end=3000, text="The Sword shines."))
+    source_path = tmp_path / "ep01.en.srt"
+    src.save(str(source_path), format_="srt")
+
+    translated = pysubs2.SSAFile()
+    translated.events.append(pysubs2.SSAEvent(start=1000, end=3000, text="La katana brilla."))
+    translated_path = tmp_path / "ep01.es.srt"
+    translated.save(str(translated_path), format_="srt")
+
+    from translate_subs.memory.store import ProjectMemory
+    from translate_subs.workflows.support import memory_root
+
+    pm = ProjectMemory(memory_root("Serie", "es-latam"))
+    pm.glossary["Sword"] = "Espada"
+    pm.save()
+
+    # Two safe glossary fixes target the SAME line with different (both valid) suggestions.
+    # Each whole-line replacement would clobber the other, so neither must be applied.
+    def fake_runner(prompt: str) -> str:
+        return json.dumps(
+            [
+                {
+                    "scope": "line",
+                    "id": "0001",
+                    "kind": "glossary",
+                    "message": "use the glossary",
+                    "current": "La katana brilla.",
+                    "suggested": "La Espada brilla.",
+                    "auto_safe": True,
+                },
+                {
+                    "scope": "line",
+                    "id": "0001",
+                    "kind": "glossary",
+                    "message": "use the glossary",
+                    "current": "La katana brilla.",
+                    "suggested": "La Espada resplandece.",
+                    "auto_safe": True,
+                },
+            ]
+        )
+
+    result = pipeline.review_translation(
+        source_path,
+        translated_path,
+        project="Serie",
+        interactive=False,
+        apply=True,
+        runner=fake_runner,
+    )
+
+    assert result.n_applied == 0  # conflicting fixes on one line -> left for a human
+    assert pysubs2.load(str(translated_path)).events[0].plaintext == "La katana brilla."
+
+
 def test_review_apply_preserves_ass_leading_tags(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
 

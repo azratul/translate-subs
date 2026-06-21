@@ -31,6 +31,8 @@ from translate_subs.workflows.models import PipelineError, ReviewResult, Tighten
 from translate_subs.workflows.support import (
     atomic_save,
     context_path,
+    default_project,
+    episode_key,
     memory_root,
     project_episode,
     readability_path,
@@ -140,10 +142,24 @@ def review_translation(
     auto_fixes = report.auto_fixes()
     if apply and auto_fixes and aligned:
         index_by_id = {line.id: line.event_index for line in lines}
+        # Each safe fix is a whole-line replacement, so two fixes on the same line would clobber
+        # each other (last wins, the first silently lost). When a line has more than one distinct
+        # suggestion, apply none of them and leave it for a human.
+        suggestions_by_id: dict[str, set[str]] = {}
+        for fix in auto_fixes:
+            if fix.id is not None and fix.suggested is not None:
+                suggestions_by_id.setdefault(fix.id, set()).add(fix.suggested)
+        applied_ids: set[str] = set()
         for fix in auto_fixes:
             index = index_by_id.get(fix.id or "")
-            if index is not None and fix.suggested is not None:
+            if (
+                index is not None
+                and fix.suggested is not None
+                and fix.id not in applied_ids
+                and len(suggestions_by_id.get(fix.id or "", set())) == 1
+            ):
                 replace_visible_text(target_subs.events[index], fix.suggested)
+                applied_ids.add(fix.id or "")
                 n_applied += 1
         if n_applied:
             atomic_save(
@@ -166,6 +182,7 @@ def review_translation(
 def tighten_subtitle(
     translated_path: str | Path,
     *,
+    target: str = "es-latam",
     project: str | None = None,
     limits: ReadabilityLimits | None = None,
     use_llm: bool = True,
@@ -241,14 +258,13 @@ def tighten_subtitle(
     if apply and n_applied:
         atomic_save(subs, translated_path, validate=validate_file)
 
-    project_name = project or translated_path.parent.name or "default"
-    episode_name = base_stem(translated_path)
-    # tighten has no --target; infer it from the file's own language suffix (e.g. ep.es.srt -> es)
-    # so the report lands beside the rest of that language's state, else fall back to the default.
-    full_stem = translated_path.stem
-    target = full_stem[len(episode_name) :].lstrip(".") if full_stem != episode_name else None
-    out_path = readability_path(project_name, target or config.DEFAULT_TARGET, episode_name)
-    atomic_write_text(out_path, render_readability_md(episode_name, entries))
+    # Resolve project/episode/target the same way translate and review do, so the readability
+    # report lands in the same per-episode directory as the rest of that episode's state instead
+    # of a divergent `<project>/<lang-from-filename>/<base-stem>/` location.
+    project_name = project or default_project(translated_path)
+    episode_name = episode_key(translated_path)
+    out_path = readability_path(project_name, target, episode_name)
+    atomic_write_text(out_path, render_readability_md(base_stem(translated_path), entries))
 
     return TightenResult(
         report_path=out_path,

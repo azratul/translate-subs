@@ -27,6 +27,10 @@ move these entries under a dated version heading.
   recorded by `analyze` but previously ignored when translating.
 
 ### Added
+- `analyze`, `review` and `tighten` now resolve unset options (target, provider, model,
+  reasoning, lang) from the project's `settings.json`, matching `translate`/`batch` — so a
+  per-series default set once with `config` applies to the whole workflow. `tighten` gains a
+  `--target` flag.
 - Agent CLIs are now invoked with their own built-in restrictions, since subtitle text is
   untrusted input fed to a tool-capable agent: `codex --sandbox read-only`, `claude` denies every
   filesystem/exec/network/subagent tool (`--disallowedTools`) and ignores MCP servers
@@ -34,6 +38,13 @@ move these entries under a dated version heading.
   external plugins, and never `--dangerously-skip-permissions`).
 
 ### Fixed
+- `tighten` writes its readability report to the same per-episode directory as the rest of that
+  episode's state (`<project>/<target>/<episode-key>/`), resolving project/episode/target the way
+  `translate` and `review` do, instead of a divergent `<project>/<lang-from-filename>/<stem>/`
+  location that lost the project, variant and episode-key.
+- `review --apply` no longer lets two safe fixes on the same line clobber each other: since each is
+  a whole-line replacement, a line with more than one distinct suggestion is left for a human
+  rather than silently keeping only the last.
 - Per-series memory is now segmented by the **full target**, not the collapsed language code:
   `es-latam` and `es-ES` (or any two variants of one language) get separate memory subtrees instead
   of sharing `<project>/es/`, so a Castilian glossary can't contaminate a Latin-American run.
