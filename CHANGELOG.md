@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-22
+
+First tagged release.
+
 ### Fixed
 - Review: a model returning the JSON string `"false"` for `auto_safe` no longer reads as truthy
   (Python's `bool("false")` is `True`), so a finding the model marked not-auto-safe can no longer
@@ -14,52 +18,6 @@ All notable changes to this project are documented here. The format follows
   letting a raw `ValueError` propagate.
 - A path-like `target` in a project's `settings.json` is now rejected when the file is loaded
   (same validation as the workflows), not silently carried until translate time.
-
-### Changed
-- Review provenance manifest is now complete: alongside the source/translated filenames, target
-  and source fingerprint, the report records a fingerprint of the translated content and the
-  provider/model used, so a report can be matched against the exact translated file it reviewed.
-- Replaced the `gemini` provider with `antigravity` (the `agy` CLI that supersedes the standalone
-  Gemini CLI). It runs `agy --print --sandbox` with the prompt on stdin; models use `agy`'s
-  descriptive names (e.g. `"Gemini 3.5 Flash (Low)"`). **Breaking:** `--provider gemini` and a
-  `gemini` value in `settings.json` are no longer accepted — use `antigravity`. Security note:
-  `agy` is agentic and has no read-only/no-tools mode (its `--sandbox` only restricts the
-  terminal), so unlike the other agent CLIs its only containment is the throwaway working
-  directory; `--dangerously-skip-permissions` is never passed.
-
-## [0.1.0] - 2026-06-21
-
-First tagged release. Everything below shipped in 0.1.0.
-
-### Added
-- Per-target memory layout: series memory, glossary, style guide, episode context and checkpoints
-  now live under `<project>/<lang>`, so a glossary built for one target language no longer leaks
-  into a different target. `compact-memory`/`resolve-conflicts`/`update-memory` gain `--target`.
-- Episodes are disambiguated by source folder: the per-episode directory key is the source stem
-  plus a short hash of its containing directory, so two same-named files in different folders (e.g.
-  `Season 1/Episode 01` and `Season 2/Episode 01`) under one project no longer share context or
-  translation checkpoints; the same file still maps to the same directory so resume is stable.
-- Stale-context detection: `analyze` records a fingerprint of the analyzed subtitle in
-  `episode.context.json`; `translate` and `review` warn (never block) when the subtitle has changed
-  since it was analyzed. Legacy context files without the fingerprint are not flagged.
-- Command-layer wiring tests for every CLI command plus direct workflow tests, lifting overall
-  coverage to ~91% (the `commands/` and `workflows/` packages were the thin spots after the split).
-- Translation now uses the analyzed per-character speech style/register (relevance-filtered per
-  block, like gender) and the episode summary (in the always-sent base rules) — context that was
-  recorded by `analyze` but previously ignored when translating.
-
-### Added
-- `analyze`, `review` and `tighten` now resolve unset options (target, provider, model,
-  reasoning, lang) from the project's `settings.json`, matching `translate`/`batch` — so a
-  per-series default set once with `config` applies to the whole workflow. `tighten` gains a
-  `--target` flag.
-- Agent CLIs are now invoked with their own built-in restrictions, since subtitle text is
-  untrusted input fed to a tool-capable agent: `codex --sandbox read-only`, `claude` denies every
-  filesystem/exec/network/subagent tool (`--disallowedTools`) and ignores MCP servers
-  (`--strict-mcp-config`), `gemini --approval-mode plan` (read-only), and `opencode --pure` (no
-  external plugins, and never `--dangerously-skip-permissions`).
-
-### Fixed
 - `.ass` output validation now also checks fidelity: each event must keep its source style and its
   whole-line leading override block (`{\an8\pos(..)}`), so a silently dropped position/colour/
   alignment fails validation and nothing is written (the check is scoped to the translate path,
@@ -144,6 +102,31 @@ First tagged release. Everything below shipped in 0.1.0.
   relevant ASS style differences.
 
 ### Added
+- Per-target memory layout: series memory, glossary, style guide, episode context and checkpoints
+  now live under `<project>/<lang>`, so a glossary built for one target language no longer leaks
+  into a different target. `compact-memory`/`resolve-conflicts`/`update-memory` gain `--target`.
+- Episodes are disambiguated by source folder: the per-episode directory key is the source stem
+  plus a short hash of its containing directory, so two same-named files in different folders (e.g.
+  `Season 1/Episode 01` and `Season 2/Episode 01`) under one project no longer share context or
+  translation checkpoints; the same file still maps to the same directory so resume is stable.
+- Stale-context detection: `analyze` records a fingerprint of the analyzed subtitle in
+  `episode.context.json`; `translate` and `review` warn (never block) when the subtitle has changed
+  since it was analyzed. Legacy context files without the fingerprint are not flagged.
+- Command-layer wiring tests for every CLI command plus direct workflow tests, lifting overall
+  coverage to ~91% (the `commands/` and `workflows/` packages were the thin spots after the split).
+- Translation now uses the analyzed per-character speech style/register (relevance-filtered per
+  block, like gender) and the episode summary (in the always-sent base rules) — context that was
+  recorded by `analyze` but previously ignored when translating.
+- `analyze`, `review` and `tighten` now resolve unset options (target, provider, model,
+  reasoning, lang) from the project's `settings.json`, matching `translate`/`batch` — so a
+  per-series default set once with `config` applies to the whole workflow. `tighten` gains a
+  `--target` flag.
+- Agent CLIs are now invoked with their own built-in restrictions, since subtitle text is
+  untrusted input fed to a tool-capable agent: `codex --sandbox read-only`; `claude` denies every
+  filesystem/exec/network/subagent tool (`--disallowedTools`) and ignores MCP servers
+  (`--strict-mcp-config`); `antigravity` (`agy`) runs `--print --sandbox`; `opencode --pure` (no
+  external plugins, and never `--dangerously-skip-permissions`). Each CLI also runs from an empty
+  throwaway working directory so a crafted subtitle cannot steer the agent at the user's files.
 - Deterministic round-trip, episode analysis, per-series memory, automatic review, readability
   control, and the full CLI with agent-CLI and local-model (Ollama/LiteLLM) providers.
 - `doctor` command: a no-LLM environment check (media tools on PATH, writable data/cache dirs,
@@ -171,6 +154,16 @@ First tagged release. Everything below shipped in 0.1.0.
 - CI dependency vulnerability scan (`pip-audit`) and least-privilege `GITHUB_TOKEN` permissions.
 
 ### Changed
+- Review provenance manifest is now complete: alongside the source/translated filenames, target
+  and source fingerprint, the report records a fingerprint of the translated content and the
+  provider/model used, so a report can be matched against the exact translated file it reviewed.
+- Replaced the `gemini` provider with `antigravity` (the `agy` CLI that supersedes the standalone
+  Gemini CLI). It runs `agy --print --sandbox` with the prompt on stdin; models use `agy`'s
+  descriptive names (e.g. `"Gemini 3.5 Flash (Low)"`). **Breaking:** `--provider gemini` and a
+  `gemini` value in `settings.json` are no longer accepted — use `antigravity`. Security note:
+  `agy` is agentic and has no read-only/no-tools mode (its `--sandbox` only restricts the
+  terminal), so unlike the other agent CLIs its only containment is the throwaway working
+  directory; `--dangerously-skip-permissions` is never passed.
 - Refactored the large pipeline and CLI modules into focused `workflows/` and `commands/`
   packages. The original modules remain stable compatibility facades with unchanged public
   function parameters, command options and help output.
