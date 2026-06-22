@@ -6,7 +6,7 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
 Contextual subtitle translator **from any language to any language** using an LLM through its
-CLI (`claude`, `codex`, `gemini`, `opencode`) or a model API (`ollama`, `litellm`). Unlike
+CLI (`claude`, `codex`, `antigravity`, `opencode`) or a model API (`ollama`, `litellm`). Unlike
 line-by-line machine translation, it leverages **context**: character gender,
 formality/register, relationships, per-series glossary, and tone.
 
@@ -25,7 +25,7 @@ formality/register, relationships, per-series glossary, and tone.
 
 - Python ≥ 3.11 and [`uv`](https://docs.astral.sh/uv/).
 - `ffmpeg`/`ffprobe` (for embedded tracks inside containers).
-- At least one backend to actually translate: an agent CLI (`claude`, `codex`, `gemini`,
+- At least one backend to actually translate: an agent CLI (`claude`, `codex`, `antigravity`,
   `opencode`) installed and authenticated, a local [Ollama](https://ollama.com) server
   (`--provider ollama --model qwen3:4b`, host from `$OLLAMA_HOST`), or [LiteLLM]
   (https://docs.litellm.ai) (`uv sync --extra litellm`, then `--provider litellm --model
@@ -92,7 +92,7 @@ uv build   # writes a wheel and sdist to dist/
 The tool sends the **visible text** of your subtitles to the backend you pick with
 `--provider`. What that means for privacy and cost:
 
-- **Remote backends** — the agent CLIs (`claude`, `codex`, `gemini`, `opencode`) and `litellm`
+- **Remote backends** — the agent CLIs (`claude`, `codex`, `antigravity`, `opencode`) and `litellm`
   pointed at a hosted model — transmit that text to a third party, subject to that provider's
   retention and pricing. Cost is typically per token, or covered by your CLI subscription.
 - **Local backends** — `ollama` (and `litellm` pointed at a local model) — keep everything on
@@ -243,7 +243,7 @@ uv run translate-subs translate "$EP" --provider codex --model gpt-5.5 \
 ### Providers (`--provider`)
 
 `identity` (passthrough, no translation) · `file-handoff` (writes the job protocol to fill in by
-hand) · `claude` · `codex` · `gemini` · `opencode` · `ollama` (local server) · `litellm` (router
+hand) · `claude` · `codex` · `antigravity` · `opencode` · `ollama` (local server) · `litellm` (router
 SDK).
 
 - `ollama` POSTs to `$OLLAMA_HOST` (default `http://localhost:11434`) `/api/chat` with
@@ -489,10 +489,12 @@ specific items follow.
 - **OS-level sandboxing of agent CLIs.** Each agent CLI is invoked with its own built-in
   restriction so untrusted subtitle text can't talk it into touching your files: `codex` runs
   `--sandbox read-only`, `claude` denies every filesystem/exec/network/subagent tool and ignores
-  all MCP servers (`--strict-mcp-config`), `gemini` uses `--approval-mode plan` (read-only), and
-  `opencode` runs `--pure` (no external plugins) and is never given `--dangerously-skip-permissions`.
+  all MCP servers (`--strict-mcp-config`), `antigravity` (`agy`) runs `--print --sandbox`, and
+  `opencode` runs `--pure` (no external plugins); none is ever given `--dangerously-skip-permissions`.
   On top of those flags, each agent CLI is launched from an empty throwaway working directory, so a
-  crafted subtitle can't steer it toward files in your real cwd.
+  crafted subtitle can't steer it toward files in your real cwd. Caveat: `antigravity` replaced the
+  Gemini CLI and is agentic — its `--sandbox` only restricts the terminal (no read-only/no-tools
+  mode like the old `--approval-mode plan`), so the throwaway cwd is its primary containment.
   Full OS isolation (containers/seccomp) is still out of scope; the strongest mitigation — use a
   local backend (`ollama`) for sensitive subtitles — is documented in [SECURITY.md](SECURITY.md).
 - **Token-aware block sizing and map-reduce analysis.** Blocks are sized by line count. Subtitle

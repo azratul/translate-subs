@@ -8,7 +8,7 @@ import typer
 
 from translate_subs.readability.metrics import ReadabilityLimits
 
-_AI_PROVIDER_HELP = "claude | codex | gemini | opencode"
+_AI_PROVIDER_HELP = "claude | codex | antigravity | opencode"
 # Options that fall through to project settings.json when not given on the command line.
 _AUX_DEFAULTED = ("provider", "model", "target", "lang", "reasoning")
 _TIGHTEN_DEFAULTED = ("provider", "model", "target", "reasoning")

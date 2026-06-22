@@ -19,6 +19,13 @@ All notable changes to this project are documented here. The format follows
 - Review provenance manifest is now complete: alongside the source/translated filenames, target
   and source fingerprint, the report records a fingerprint of the translated content and the
   provider/model used, so a report can be matched against the exact translated file it reviewed.
+- Replaced the `gemini` provider with `antigravity` (the `agy` CLI that supersedes the standalone
+  Gemini CLI). It runs `agy --print --sandbox` with the prompt on stdin; models use `agy`'s
+  descriptive names (e.g. `"Gemini 3.5 Flash (Low)"`). **Breaking:** `--provider gemini` and a
+  `gemini` value in `settings.json` are no longer accepted — use `antigravity`. Security note:
+  `agy` is agentic and has no read-only/no-tools mode (its `--sandbox` only restricts the
+  terminal), so unlike the other agent CLIs its only containment is the throwaway working
+  directory; `--dangerously-skip-permissions` is never passed.
 
 ## [0.1.0] - 2026-06-21
 

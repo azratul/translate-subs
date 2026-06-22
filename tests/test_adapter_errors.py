@@ -41,14 +41,14 @@ def test_run_raises_on_nonzero_exit_with_detail(monkeypatch):
 
 
 def test_run_raises_on_timeout(monkeypatch):
-    monkeypatch.setattr(cli_adapters.shutil, "which", lambda name: "/usr/bin/gemini")
+    monkeypatch.setattr(cli_adapters.shutil, "which", lambda name: "/usr/bin/agy")
 
     def boom(*a, **k):
-        raise subprocess.TimeoutExpired(cmd="gemini", timeout=10)
+        raise subprocess.TimeoutExpired(cmd="agy", timeout=10)
 
     monkeypatch.setattr(cli_adapters.subprocess, "run", boom)
     with pytest.raises(ProviderError, match="timed out after 10s"):
-        cli_adapters._run("gemini", ["gemini"], "prompt", 10)
+        cli_adapters._run("agy", ["agy"], "prompt", 10)
 
 
 def test_claude_cli_hardens_argv(monkeypatch):

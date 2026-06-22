@@ -31,7 +31,7 @@ def translate(
     ),
     provider: str = typer.Option(
         "claude",
-        help="claude | codex | gemini | opencode | ollama | litellm | file-handoff | identity "
+        help="claude | codex | antigravity | opencode | ollama | litellm | file-handoff | identity "
         "(identity is a passthrough copy for testing, not a translation).",
     ),
     model: str | None = typer.Option(
@@ -212,7 +212,8 @@ def batch(
     target: str = typer.Option("es-latam", help="Target language/variant."),
     provider: str = typer.Option(
         "claude",
-        help="claude | codex | gemini | opencode | ollama | litellm | file-handoff | identity.",
+        help="claude | codex | antigravity | opencode | ollama | litellm | "
+        "file-handoff | identity.",
     ),
     model: str | None = typer.Option(None, "--model", help="Model id for the provider."),
     reasoning: str | None = typer.Option(None, "--reasoning", help="codex reasoning effort."),

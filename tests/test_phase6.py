@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from translate_subs import config, pipeline
 from translate_subs.ai import cli_adapters
-from translate_subs.ai.cli_adapters import CodexCli, GeminiCli, OpencodeCli, make_runner
+from translate_subs.ai.cli_adapters import AntigravityCli, CodexCli, OpencodeCli, make_runner
 from translate_subs.ai.provider import CliTranslationProvider, IdentityProvider, ProviderError
 from translate_subs.cli import app
 from translate_subs.pipeline import PipelineError, make_ai_runner, make_provider
@@ -30,8 +30,7 @@ def capture_run(monkeypatch):
         calls["cwd"] = cwd
         if "-o" in cmd:  # codex writes its final message to this file
             out = Path(cmd[cmd.index("-o") + 1])
-            # gemini also uses -o, but as a format name ("text"), not a path;
-            # only write when -o points at an actual output path.
+            # Only write when -o points at an actual output path (codex), not a flag value.
             if out.is_absolute() and out.parent.exists():
                 out.write_text("FROM_FILE", encoding="utf-8")
         return types.SimpleNamespace(returncode=0, stdout="FROM_STDOUT", stderr="")
@@ -52,13 +51,15 @@ def test_codex_uses_stdin_and_output_file(capture_run):
     assert capture_run["input"] == "PROMPT"
 
 
-def test_gemini_headless_via_stdin(capture_run):
-    assert GeminiCli()("PROMPT") == "FROM_STDOUT"
+def test_antigravity_headless_via_stdin(capture_run):
+    assert AntigravityCli(model="Gemini 3.5 Flash (Low)")("PROMPT") == "FROM_STDOUT"
     cmd = capture_run["cmd"]
-    assert "-o" in cmd and "text" in cmd
-    # Hardening: plan = read-only approval mode (modifying tools are auto-rejected).
-    assert cmd[cmd.index("--approval-mode") + 1] == "plan"
-    assert cmd[-2:] == ["-p", ""]
+    # --print runs one prompt non-interactively; --sandbox restricts the terminal.
+    assert "--print" in cmd and "--sandbox" in cmd
+    # Hardening: never auto-approve tool permissions.
+    assert "--dangerously-skip-permissions" not in cmd
+    assert cmd[cmd.index("--model") + 1] == "Gemini 3.5 Flash (Low)"
+    # The prompt arrives on stdin, not as an argument.
     assert capture_run["input"] == "PROMPT"
 
 
@@ -75,7 +76,7 @@ def test_opencode_passes_message_as_arg(capture_run):
 
 def test_cli_adapters_run_from_throwaway_cwd(capture_run):
     # Hardening: each agent runs in an empty temp dir, not the user's real working directory.
-    for runner in (CodexCli(), GeminiCli(), OpencodeCli()):
+    for runner in (CodexCli(), AntigravityCli(), OpencodeCli()):
         runner("PROMPT")
         cwd = capture_run["cwd"]
         assert cwd is not None and Path(cwd).name.startswith("translate-subs-cwd-")
@@ -83,14 +84,14 @@ def test_cli_adapters_run_from_throwaway_cwd(capture_run):
 
 def test_make_runner_and_unknown():
     assert isinstance(make_runner("codex"), CodexCli)
-    assert isinstance(make_runner("gemini"), GeminiCli)
+    assert isinstance(make_runner("antigravity"), AntigravityCli)
     with pytest.raises(ProviderError):
         make_runner("nope")
 
 
 def test_make_provider_wires_cli_providers(tmp_path):
     assert isinstance(make_provider("identity", tmp_path), IdentityProvider)
-    for name in ("claude", "codex", "gemini", "opencode"):
+    for name in ("claude", "codex", "antigravity", "opencode"):
         assert isinstance(make_provider(name, tmp_path), CliTranslationProvider)
     with pytest.raises(PipelineError):
         make_provider("bogus", tmp_path)

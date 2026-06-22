@@ -21,8 +21,14 @@ from translate_subs import config
 
 Status = Literal["ok", "warn", "fail"]
 
-# Providers whose backend is just a CLI of the same name on PATH.
-_CLI_BINARIES = ("claude", "codex", "gemini", "opencode")
+# Providers whose backend is a CLI on PATH, mapped to that CLI's binary name (usually the same,
+# but `antigravity` ships as `agy`).
+_CLI_BINARIES = {
+    "claude": "claude",
+    "codex": "codex",
+    "antigravity": "agy",
+    "opencode": "opencode",
+}
 
 
 @dataclass
@@ -100,10 +106,11 @@ def _provider_check(provider: str) -> Check:
     if provider in ("identity", "file-handoff"):
         return Check(provider, "ok", "no external backend required")
     if provider in _CLI_BINARIES:
-        path = shutil.which(provider)
+        binary = _CLI_BINARIES[provider]
+        path = shutil.which(binary)
         if path:
             return Check(provider, "ok", path)
-        return Check(provider, "fail", f"`{provider}` CLI not found on PATH.")
+        return Check(provider, "fail", f"`{binary}` CLI not found on PATH.")
     if provider == "ollama":
         return _ollama_check()
     if provider == "litellm":

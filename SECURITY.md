@@ -16,7 +16,7 @@ choose. Keep two things in mind.
 The tool extracts the *visible text* of each line and sends it to the backend you select
 (`--provider`). That text leaves your machine whenever the backend is a remote service:
 
-- **Agent CLIs** (`claude`, `codex`, `gemini`, `opencode`) and **`litellm`** with a hosted
+- **Agent CLIs** (`claude`, `codex`, `antigravity`, `opencode`) and **`litellm`** with a hosted
   model send the text to that provider. Treat this like any third-party API: the content may
   be transmitted, logged, or retained per that provider's policy.
 - **`ollama`** (and `litellm` pointed at a local model) keeps everything on your machine.
@@ -37,12 +37,16 @@ Mitigations, in order of effectiveness:
 - Each agent CLI is already invoked with its own built-in restriction so it cannot act on a
   crafted subtitle: `codex` runs `--sandbox read-only`; `claude` denies every
   filesystem/exec/network/subagent tool (`--disallowedTools`) and ignores all MCP servers
-  (`--strict-mcp-config`); `gemini` runs `--approval-mode plan` (read-only); `opencode` runs
+  (`--strict-mcp-config`); `antigravity` (`agy`) runs `--print --sandbox`; `opencode` runs
   `--pure` (no external plugins) and is never passed `--dangerously-skip-permissions`. These are
   the CLIs' own flags, not OS isolation — keep each CLI updated and don't override them.
+- **`antigravity` is the exception**: it is agentic and, unlike the Gemini CLI it replaced (which
+  ran read-only via `--approval-mode plan`), has no read-only/no-tools switch. Its `--sandbox`
+  only restricts the terminal — commands can still run — so its only real containment is the
+  throwaway working directory below. It is a weaker, more implicit guarantee than the other CLIs.
 - Each agent CLI is launched from an empty throwaway working directory, so even within its
-  read-only sandbox a crafted subtitle cannot point the agent at files in your real working
-  directory.
+  sandbox a crafted subtitle cannot point the agent at files in your real working directory. For
+  `antigravity` this throwaway cwd is the primary containment, not a backstop.
 - A `--target` is validated as a language tag before it touches the filesystem, so it cannot be
   used to write a translation or report outside its intended directory.
 - The tool never hands the raw subtitle file to the backend: content is structured as

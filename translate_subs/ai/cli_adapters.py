@@ -1,7 +1,7 @@
 """Translation runners for the supported backends.
 
 Each runner is a callable `prompt -> assistant_text`, swappable behind the same
-provider. `claude` is the verified default; `codex`, `gemini` and `opencode` use each
+provider. `claude` is the verified default; `codex`, `antigravity` and `opencode` use each
 tool's documented non-interactive invocation; `ollama` and `litellm` (see
 `api_adapters`) talk to a local server / model router for cheap models. Higher layers
 build the prompt and parse the reply, so these stay free of domain knowledge.
@@ -81,20 +81,30 @@ class CodexCli:
 
 
 @dataclass
-class GeminiCli:
-    """Gemini CLI in headless mode: `-p` triggers non-interactive; stdin carries the prompt."""
+class AntigravityCli:
+    """Google's Antigravity CLI (`agy`): `--print` runs one prompt non-interactively from stdin.
+
+    Antigravity replaced the standalone Gemini CLI. Unlike `gemini --approval-mode plan` (which
+    auto-rejected every tool), `agy` is agentic and has no read-only/no-tools switch: `--sandbox`
+    only restricts the terminal, so it can still run commands. The containment we rely on is the
+    empty throwaway cwd `_run` provides (the sandbox confines file access to that empty workspace)
+    plus never passing `--dangerously-skip-permissions`. Model names are the descriptive labels
+    `agy models` prints (e.g. "Gemini 3.5 Flash (Low)"), not API ids; omitting `--model` uses the
+    CLI's own default.
+    """
 
     model: str | None = None
-    binary: str = "gemini"
+    binary: str = "agy"
     timeout: int = 600
 
     def __call__(self, prompt: str) -> str:
-        # plan = read-only approval mode: tools that would modify anything are auto-rejected.
-        cmd = [self.binary, "-o", "text", "--approval-mode", "plan"]
+        cmd = [self.binary, "--print", "--sandbox"]
         if self.model:
-            cmd += ["-m", self.model]
-        cmd += ["-p", ""]  # empty flag prompt; real prompt is appended from stdin
-        return _run(self.binary, cmd, prompt, self.timeout)
+            cmd += ["--model", self.model]
+        # Bound agy's own wait to our timeout; give the subprocess a small grace period on top so
+        # agy reports its timeout rather than being killed mid-write.
+        cmd += ["--print-timeout", f"{self.timeout}s"]
+        return _run(self.binary, cmd, prompt, self.timeout + 10)
 
 
 @dataclass
@@ -126,7 +136,7 @@ def _codex(model: str | None, reasoning: str | None) -> Runner:
 _RUNNERS: dict[str, Callable[[str | None, str | None], Runner]] = {
     "claude": lambda model, reasoning: ClaudeCli(model) if model else ClaudeCli(),
     "codex": _codex,
-    "gemini": lambda model, reasoning: GeminiCli(model),
+    "antigravity": lambda model, reasoning: AntigravityCli(model),
     "opencode": lambda model, reasoning: OpencodeCli(model),
     "ollama": lambda model, reasoning: OllamaRunner(model),
     "litellm": lambda model, reasoning: LiteLLMRunner(model),
