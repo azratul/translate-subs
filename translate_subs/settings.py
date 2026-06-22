@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from translate_subs.ai.cli_adapters import CLI_PROVIDERS
 from translate_subs.fsutil import atomic_write_text
+from translate_subs.naming import validate_target
 
 SETTINGS_FILE = "settings.json"
 
@@ -36,6 +37,15 @@ class ProjectSettings(BaseModel):
     lang: str | None = None
     format: str | None = None
     reasoning: str | None = None
+
+    @field_validator("target")
+    @classmethod
+    def _check_target(cls, value: str | None) -> str | None:
+        # Validate the same way the workflows do, so an invalid target in settings.json is
+        # rejected when the file is loaded rather than only at translate time.
+        if value is not None:
+            validate_target(value)
+        return value
 
     @field_validator("provider")
     @classmethod

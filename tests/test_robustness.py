@@ -962,6 +962,23 @@ def test_settings_round_trip_and_resolve_precedence(tmp_path):
     assert resolve(None, "reasoning", loaded) is None  # no setting, no built-in
 
 
+def test_settings_reject_path_like_target(tmp_path):
+    import pydantic
+
+    from translate_subs.settings import ProjectSettings, load_settings
+
+    # A path-like target is rejected at construction, not silently carried to translate time.
+    with pytest.raises(pydantic.ValidationError):
+        ProjectSettings(target="../../etc")
+
+    # A hand-edited settings.json with the same value surfaces a friendly ValueError on load.
+    (tmp_path / "settings.json").write_text('{"target": "../../etc"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid"):
+        load_settings(tmp_path)
+
+    assert ProjectSettings(target="es-latam").target == "es-latam"  # valid tag still accepted
+
+
 def test_config_command_sets_unsets_and_validates(tmp_path, monkeypatch):
     from translate_subs.settings import load_settings
 

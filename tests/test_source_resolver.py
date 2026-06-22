@@ -84,6 +84,12 @@ def test_explicit_track_and_image_rejection():
         )
 
 
+def test_interactive_track_selection_rejects_non_numeric_input():
+    tracks = [_track(0, lang="eng"), _track(1, lang="spa")]
+    with pytest.raises(SourceError, match="Not a track index"):
+        select_track(tracks, lang=None, track_index=None, interactive=True, prompt=lambda _: "abc")
+
+
 def test_embedded_track_is_extracted(tmp_path, monkeypatch):
     media = tmp_path / "episode.mkv"
     media.touch()

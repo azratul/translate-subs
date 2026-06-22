@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows
 - Review: a model returning the JSON string `"false"` for `auto_safe` no longer reads as truthy
   (Python's `bool("false")` is `True`), so a finding the model marked not-auto-safe can no longer
   slip past the safe-fix gate. Only a real boolean `true` or the string `"true"` counts as auto.
+- Interactive track selection now reports a friendly error for non-numeric input instead of
+  letting a raw `ValueError` propagate.
+- A path-like `target` in a project's `settings.json` is now rejected when the file is loaded
+  (same validation as the workflows), not silently carried until translate time.
 
 ### Changed
 - Review provenance manifest is now complete: alongside the source/translated filenames, target
