@@ -1313,3 +1313,98 @@ def test_checkpoint_signature_includes_effective_model(tmp_path, monkeypatch):
     )
     signature = json.loads(cp.read_text())["signature"]
     assert signature == "claude|claude-opus-4-8|"
+
+
+# --- parallel translate_with_checkpoint (ollama / litellm path) ----------------------
+
+
+class _ParallelProvider:
+    """Test double with translate_block (thread-safe per-block method)."""
+
+    def __init__(self):
+        import threading
+
+        self.calls: list[str] = []
+        self._lock = threading.Lock()
+
+    def translate_block(self, job):
+        translations = {line.id: line.text.upper() for line in job.translate}
+        with self._lock:
+            self.calls.append(job.block_id)
+        return translations, []
+
+    def translate(self, jobs):
+        out = {}
+        for job in jobs:
+            t, _ = self.translate_block(job)
+            out.update(t)
+        return out
+
+
+def test_parallel_translate_all_blocks(tmp_path):
+    from translate_subs.ai.checkpoint import BlockCheckpoint, translate_with_checkpoint
+
+    jobs = [_job(f"000{i}", [(f"000{i}", f"line {i}")]) for i in range(1, 5)]
+    cp = BlockCheckpoint(tmp_path / "cp.json", signature="ollama|")
+    prov = _ParallelProvider()
+
+    events: list = []
+    translations, untranslated = translate_with_checkpoint(
+        prov, jobs, checkpoint=cp, on_progress=events.append, parallel=4
+    )
+
+    assert sorted(prov.calls) == ["0001", "0002", "0003", "0004"]
+    assert translations == {"0001": "LINE 1", "0002": "LINE 2", "0003": "LINE 3", "0004": "LINE 4"}
+    assert untranslated == []
+    assert len(events) == 4
+    assert all(not e.reused for e in events)
+    # All blocks were saved to the checkpoint.
+    assert len(cp.entries) == 4
+
+
+def test_parallel_translate_serves_cache_hits(tmp_path):
+    from translate_subs.ai.checkpoint import BlockCheckpoint, _Entry, block_hash, translate_with_checkpoint
+
+    jobs = [_job("0001", [("0001", "a")]), _job("0002", [("0002", "b")])]
+    cp = BlockCheckpoint(tmp_path / "cp.json", signature="ollama|")
+    # Pre-seed block 1 as already translated.
+    cp.entries[block_hash(jobs[0])] = _Entry("0001", {"0001": "PRE"}, [])
+    prov = _ParallelProvider()
+
+    events: list = []
+    translations, _ = translate_with_checkpoint(
+        prov, jobs, checkpoint=cp, on_progress=events.append, parallel=4
+    )
+
+    assert prov.calls == ["0002"]
+    assert translations == {"0001": "PRE", "0002": "B"}
+    assert [e.reused for e in events] == [True, False]
+
+
+def test_parallel_translate_propagates_block_error(tmp_path):
+    from translate_subs.ai.checkpoint import BlockCheckpoint, translate_with_checkpoint
+    from translate_subs.ai.provider import ProviderError
+
+    class _FailingProvider:
+        def translate_block(self, job):
+            raise ProviderError("backend down", retryable=False)
+
+    jobs = [_job("0001", [("0001", "x")])]
+    cp = BlockCheckpoint(tmp_path / "cp.json", signature="ollama|")
+
+    with pytest.raises(ProviderError, match="backend down"):
+        translate_with_checkpoint(_FailingProvider(), jobs, checkpoint=cp, parallel=2)
+
+
+def test_parallel_provider_falls_back_to_sequential_without_translate_block(tmp_path):
+    """A provider without translate_block ignores parallel > 1 and runs sequentially."""
+    from translate_subs.ai.checkpoint import BlockCheckpoint, translate_with_checkpoint
+
+    jobs = [_job("0001", [("0001", "x")]), _job("0002", [("0002", "y")])]
+    cp = BlockCheckpoint(tmp_path / "cp.json", signature="s|")
+    prov = _FlakyProvider()
+
+    translations, _ = translate_with_checkpoint(prov, jobs, checkpoint=cp, parallel=8)
+
+    assert sorted(prov.calls) == ["0001", "0002"]
+    assert translations == {"0001": "X", "0002": "Y"}

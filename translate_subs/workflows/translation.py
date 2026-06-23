@@ -52,6 +52,9 @@ from translate_subs.workflows.support import (
 
 DEFAULT_BATCH_GLOBS = ("*.mkv",)
 _EXPECTED_PIPELINE_ERRORS = (ProviderError, SourceError, MediaToolError, OSError, ValueError)
+# API-backed providers that benefit from parallel block translation (pure HTTP, no subprocess).
+_API_PROVIDERS = frozenset({"ollama", "litellm"})
+_DEFAULT_API_PARALLEL = 4
 ProviderFactory = Callable[..., TranslationProvider]
 
 
@@ -174,11 +177,13 @@ def translate_subtitle(
             if resume
             else BlockCheckpoint(path=checkpoint_file, signature=signature)
         )
+        parallel = _DEFAULT_API_PARALLEL if provider in _API_PROVIDERS else 1
         translations, untranslated_ids = translate_with_checkpoint(
             translation_provider,
             jobs,
             checkpoint=checkpoint,
             on_progress=on_progress,
+            parallel=parallel,
         )
     else:
         translations = translation_provider.translate(jobs)

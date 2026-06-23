@@ -275,30 +275,41 @@ class CliTranslationProvider(TranslationProvider):
         # text for these so one stubborn line never aborts the whole episode.
         self.untranslated_ids: list[str] = []
 
+    def translate_block(self, job: TranslationJobIn) -> tuple[dict[str, str], list[str]]:
+        """Translate a single job block, returning (translations, untranslated_ids).
+
+        All state is local to this call, so it is safe to invoke from multiple threads
+        concurrently (each thread gets its own return values, no shared mutation).
+        """
+
+        def call() -> dict[str, str]:
+            return parse_translation_reply(self.runner(build_translation_prompt(job)), job)
+
+        untranslated: list[str] = []
+        try:
+            translations = retry_provider_call(
+                call,
+                max_retries=self.max_retries,
+                label=f"Block {job.block_id}",
+            )
+        except ProviderError as exc:
+            incomplete = exc.__cause__
+            if not isinstance(incomplete, IncompleteTranslation):
+                raise
+            originals = {line.id: line.text for line in job.translate}
+            translations = dict(incomplete.translations)
+            for line_id in incomplete.empty_ids:
+                translations[line_id] = originals[line_id]
+                untranslated.append(line_id)
+        return translations, untranslated
+
     def translate(self, jobs: list[TranslationJobIn]) -> dict[str, str]:
         result: dict[str, str] = {}
         self.untranslated_ids = []
         for job in jobs:
-
-            def call(job: TranslationJobIn = job) -> dict[str, str]:
-                return parse_translation_reply(self.runner(build_translation_prompt(job)), job)
-
-            try:
-                translations = retry_provider_call(
-                    call,
-                    max_retries=self.max_retries,
-                    label=f"Block {job.block_id}",
-                )
-            except ProviderError as exc:
-                incomplete = exc.__cause__
-                if not isinstance(incomplete, IncompleteTranslation):
-                    raise
-                originals = {line.id: line.text for line in job.translate}
-                translations = dict(incomplete.translations)
-                for line_id in incomplete.empty_ids:
-                    translations[line_id] = originals[line_id]
-                self.untranslated_ids.extend(incomplete.empty_ids)
-            result.update(translations)
+            block_translations, block_untranslated = self.translate_block(job)
+            result.update(block_translations)
+            self.untranslated_ids.extend(block_untranslated)
         return result
 
 
