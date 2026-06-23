@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import typer
@@ -16,6 +17,39 @@ from rich.progress import (
 from rich.table import Table
 
 from translate_subs.pipeline import DEFAULT_BATCH_GLOBS
+
+
+def _fmt_duration(seconds: float) -> str:
+    s = int(seconds)
+    if s >= 3600:
+        return f"{s // 3600}h{(s % 3600) // 60:02d}m{s % 60:02d}s"
+    if s >= 60:
+        return f"{s // 60}m{s % 60:02d}s"
+    return f"{s}s"
+
+
+def _make_episode_callback(console, label: str = ""):
+    """Return an on_episode callback that tracks timing and prints ETA hints."""
+    start = [time.perf_counter()]  # mutable cell; [0] = time when current episode began
+    durations: list[float] = []
+
+    def on_episode(index: int, total: int, path: Path) -> None:
+        now = time.perf_counter()
+        hint = ""
+        if index > 1:
+            durations.append(now - start[0])
+            avg = sum(durations) / len(durations)
+            remaining = total - index + 1
+            eta = _fmt_duration(remaining * avg)
+            hint = f"  [dim](prev {_fmt_duration(durations[-1])}, ETA ~{eta})[/dim]"
+        start[0] = now
+        prefix = f"[Analyze {index}/{total}]" if label else f"[{index}/{total}]"
+        console.print(f"[cyan]\\{prefix}[/cyan] {path.name}{hint}")
+
+    def total_elapsed() -> float:
+        return time.perf_counter() - start[0] + sum(durations)
+
+    return on_episode, total_elapsed
 
 
 def _runtime():
@@ -260,8 +294,7 @@ def batch(
     """Translate every matching file in a directory, continuing past per-episode failures."""
     runtime = _runtime()
 
-    def on_episode(index: int, total: int, path: Path) -> None:
-        runtime.console.print(f"[cyan]\\[{index}/{total}][/cyan] {path.name}")
+    on_episode, translate_elapsed = _make_episode_callback(runtime.console)
 
     try:
         overrides = runtime._project_overrides(ctx, project)
@@ -274,10 +307,7 @@ def batch(
 
         if pre_analyze:
             runtime.console.print("[bold]Phase 1/2: Analyzing episodes…[/bold]")
-
-            def on_analyze(index: int, total: int, path: Path) -> None:
-                runtime.console.print(f"[cyan]\\[Analyze {index}/{total}][/cyan] {path.name}")
-
+            on_analyze, analyze_elapsed = _make_episode_callback(runtime.console, label="Analyze")
             analyze_provider = overrides.get("analyze_provider") or provider
             analyze_model = overrides.get("analyze_model") or model
             analyze_reasoning = overrides.get("analyze_reasoning") or reasoning
@@ -313,7 +343,8 @@ def batch(
             runtime.console.print(
                 f"Analyzed [green]{analyze_result.n_analyzed}[/green], "
                 f"skipped [yellow]{analyze_result.n_skipped}[/yellow], "
-                f"failed [red]{analyze_result.n_failed}[/red]."
+                f"failed [red]{analyze_result.n_failed}[/red].  "
+                f"Total: {_fmt_duration(analyze_elapsed())}"
             )
             runtime.console.print("[bold]Phase 2/2: Translating episodes…[/bold]")
 
@@ -368,7 +399,8 @@ def batch(
     runtime.console.print(
         f"Translated [green]{result.n_translated}[/green], "
         f"skipped [yellow]{result.n_skipped}[/yellow], "
-        f"failed [red]{result.n_failed}[/red]."
+        f"failed [red]{result.n_failed}[/red].  "
+        f"Total: {_fmt_duration(translate_elapsed())}"
     )
 
     if result.n_failed:

@@ -6,11 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-23
+
 ### Added
+- `batch` now shows per-episode timing while running: starting from the second episode, the
+  progress line includes how long the previous episode took and an ETA for the remaining ones
+  (computed as a rolling average of completed episodes). The final summary line includes the
+  total elapsed time for the phase.
 - `batch --pre-analyze` skips episodes whose `episode.context.json` is already current (source
   hash matches), so re-running after a partial analyze phase does not re-analyze episodes that
   succeeded — only the ones that failed or are new get a fresh LLM call. The per-episode table
   and the summary line now include a "skipped" count alongside analyzed/failed.
+- `batch --pre-analyze` now shows a per-episode results table after the analysis phase, listing
+  each episode's status and the full error message for failures — identical in style to the
+  translation summary table.
 
 ### Changed
 - `batch` (translate and analyze phases) now aborts immediately when a `ProviderError` propagates
@@ -20,13 +29,6 @@ All notable changes to this project are documented here. The format follows
   surfacing the original provider message is more useful than silently accumulating failures across
   a multi-hour run. Per-episode errors that are not provider failures (bad subtitle file, missing
   track, etc.) still continue as before.
-
-## [0.2.1] - 2026-06-23
-
-### Added
-- `batch --pre-analyze` now shows a per-episode results table after the analysis phase, listing
-  each episode's status and the full error message for failures — identical in style to the
-  translation summary table.
 
 ### Fixed
 - Analysis prompt now instructs the model to use the most complete form of a character's name
