@@ -6,6 +6,40 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-23
+
+### Fixed
+- Analysis prompt now instructs the model to use the most complete form of a character's name
+  (family + given for Japanese names; consistent with any prior-known entry), preventing the same
+  character from being recorded under both a short form ("Hikaru") and a full form ("Hiyama Hikaru")
+  across episodes.
+- Analysis prompt now explicitly requests all prose fields (episode_summary, speech_style,
+  relationship descriptions) in the target language, so the memory files no longer mix languages
+  when the model arbitrarily chose English for some episodes.
+
+## [0.2.0] - 2026-06-23
+
+### Added
+- `batch --pre-analyze`: runs a full `analyze` pass over every episode before translating, so
+  the complete series memory (characters, glossary, style guide) is available from the very first
+  episode rather than accumulating incrementally. Failed analyses are noted and skipped; translation
+  proceeds regardless.
+- Per-project `analyze_provider`, `analyze_model` and `analyze_reasoning` settings: set them once
+  with `config --analyze-provider / --analyze-model / --analyze-reasoning` to use a different
+  (typically stronger) model for analysis than for the high-volume translation pass.
+- Visual before/after diff table when `review --apply` or `tighten --apply` writes changes: a
+  Rich table with red/green columns shows exactly which lines were rewritten.
+- Parallel block translation for `ollama` and `litellm` (4 workers, thread-safe checkpoint): API
+  providers that are pure HTTP now translate up to four blocks concurrently; CLI providers
+  (`claude`, `codex`, etc.) remain sequential.
+- Spinners for blocking operations that have no progress bar: `analyze`, `review`, `tighten`,
+  and the extract step inside `translate` now show a spinner so the terminal is never silently
+  frozen.
+
+### Changed
+- `flatten_overlaps` (SRT overlap merging) replaced the O(n²) sequential scan with an
+  O(n log n) sweep-line algorithm; negligible on typical episodes, measurable on dense fansub files.
+
 ## [0.1.0] - 2026-06-22
 
 First tagged release.
@@ -211,5 +245,7 @@ First tagged release.
   (`extra="forbid"`) and validate on assignment; unexpected LLM gender values fold to `unknown`
   instead of entering memory.
 
-[Unreleased]: https://github.com/azratul/translate-subs/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/azratul/translate-subs/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/azratul/translate-subs/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/azratul/translate-subs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/azratul/translate-subs/releases/tag/v0.1.0
