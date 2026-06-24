@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-23
+
+### Added
+- `compact-memory` now accepts `--provider` / `--model` to run an LLM pass that detects
+  character aliases — entries for the same character stored under different name forms (e.g.
+  given name only vs. full name). The model receives every character's complete profile (gender,
+  speech style, relationships) and is asked to identify high-confidence duplicate pairs; name
+  overlap alone is not enough evidence. Each detected pair is presented interactively for
+  confirmation before the merge is applied (`-y` / `--non-interactive` to auto-apply). On merge,
+  the alias entry is removed, its relationships are folded into the canonical entry, and all other
+  characters' relationship references to the alias are rewritten to the canonical name.
+- Per-episode timing in `batch`: starting from the second episode, the progress line shows how
+  long the previous episode took and an ETA based on a rolling average. The final summary line
+  shows total elapsed time for the phase. With `--pre-analyze`, each phase is timed independently.
+- `batch --pre-analyze` skips episodes whose `episode.context.json` is already current (source
+  hash matches), so re-running after a partial failure only re-analyzes what is missing. The
+  per-episode table and summary now include a "skipped" count alongside analyzed/failed.
+
+### Changed
+- `batch` (translate and analyze phases) now aborts immediately on `ProviderError` instead of
+  recording it as a per-episode failure and continuing. A `ProviderError` signals a systemic
+  condition — rate limit, quota exhausted, wrong model name, authentication failure — that will
+  affect every subsequent episode. Per-episode errors that are not provider failures (bad subtitle
+  file, missing track, etc.) still continue as before.
+
 ## [0.2.1] - 2026-06-23
 
 ### Added
@@ -33,8 +58,7 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 - Analysis prompt now instructs the model to use the most complete form of a character's name
   (family + given for Japanese names; consistent with any prior-known entry), preventing the same
-  character from being recorded under both a short form ("Hikaru") and a full form ("Hiyama Hikaru")
-  across episodes.
+  character from being recorded under both a short form and a full form across episodes.
 - Analysis prompt now explicitly requests all prose fields (episode_summary, speech_style,
   relationship descriptions) in the target language, so the memory files no longer mix languages
   when the model arbitrarily chose English for some episodes.
@@ -271,7 +295,8 @@ First tagged release.
   (`extra="forbid"`) and validate on assignment; unexpected LLM gender values fold to `unknown`
   instead of entering memory.
 
-[Unreleased]: https://github.com/azratul/translate-subs/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/azratul/translate-subs/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/azratul/translate-subs/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/azratul/translate-subs/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/azratul/translate-subs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/azratul/translate-subs/releases/tag/v0.1.0

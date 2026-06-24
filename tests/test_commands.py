@@ -152,7 +152,7 @@ def test_compact_memory_command(tmp_path, monkeypatch):
             removed_empty_characters=1,
         ),
     )
-    monkeypatch.setattr(cli, "compact_memory", lambda project, target: result)
+    monkeypatch.setattr(cli, "compact_memory", lambda project, target, **kw: result)
     out = runner.invoke(app, ["compact-memory", "P"])
     assert out.exit_code == 0 and "Glossary" in out.stdout
 

@@ -213,11 +213,44 @@ def update_memory_command(
 def compact_memory_command(
     project: str = typer.Argument(..., help="Project/series name."),
     target: str = typer.Option("es-latam", help="Target language/variant of the memory to prune."),
+    provider: str | None = typer.Option(
+        None,
+        help=f"Enable LLM alias detection with this provider ({_AI_PROVIDER_HELP}). "
+        "Without this flag only deterministic pruning runs.",
+    ),
+    model: str | None = typer.Option(None, "--model", help="Model id for the provider."),
+    reasoning: str | None = typer.Option(None, "--reasoning", help="codex reasoning effort."),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "--yes",
+        "-y",
+        help="Auto-apply all detected aliases without prompting.",
+    ),
 ):
-    """Prune redundant series memory (identity glossary terms, duplicate/empty characters)."""
+    """Prune redundant series memory; with --provider also detects character aliases via LLM."""
     runtime = _runtime()
+
+    def alias_confirm(match) -> str:
+        if non_interactive:
+            return "apply"
+        runtime.console.print(
+            f"\n[yellow]Alias detected:[/yellow] "
+            f"[bold]{match.alias}[/bold] → [bold]{match.canonical}[/bold]"
+        )
+        runtime.console.print(f"  Reason: {match.reason}")
+        choice = typer.prompt("  [a]pply merge / [s]kip", default="a").strip().lower()
+        return "apply" if choice.startswith("a") else "skip"
+
     try:
-        result = runtime.compact_memory(project, target)
+        result = runtime.compact_memory(
+            project,
+            target,
+            provider=provider,
+            model=model,
+            reasoning=reasoning,
+            alias_confirm=alias_confirm if provider else None,
+        )
     except runtime._EXPECTED_ERRORS as exc:
         runtime.console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1)
@@ -228,9 +261,13 @@ def compact_memory_command(
         f"and [green]{report.removed_duplicate_terms}[/green] duplicate term(s)."
     )
     runtime.console.print(
-        f"Characters: merged [green]{report.merged_characters}[/green], "
+        f"Characters: merged [green]{report.merged_characters}[/green] exact duplicates, "
         f"removed [green]{report.removed_empty_characters}[/green] empty."
     )
+    if report.merged_aliases:
+        runtime.console.print(f"Aliases merged: [green]{len(report.merged_aliases)}[/green]")
+        for match in report.merged_aliases:
+            runtime.console.print(f"  {match.alias} → {match.canonical}")
     runtime.console.print(f"Memory: [green]{result.project_dir}[/green]")
 
 

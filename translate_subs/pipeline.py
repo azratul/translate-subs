@@ -175,9 +175,33 @@ def update_memory(
     )
 
 
-def compact_memory(project: str, target: str = "es-latam") -> CompactMemoryResult:
-    """Prune redundant entries from a series' memory (no LLM call)."""
-    return _compact_memory(project, target)
+def compact_memory(
+    project: str,
+    target: str = "es-latam",
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    reasoning: str | None = None,
+    max_retries: int = 2,
+    alias_confirm=None,
+) -> CompactMemoryResult:
+    """Prune redundant entries from a series' memory.
+
+    Without `provider`, only deterministic pruning runs (identity glossary terms, exact-name
+    duplicates, empty characters). With `provider`, a second LLM pass detects character aliases
+    (e.g. "Alice" vs "Alice Chambers") using gender, relationships and speech style as evidence;
+    `alias_confirm(match)` is called for each candidate and should return "apply" or "skip".
+    """
+    return _compact_memory(
+        project,
+        target,
+        provider=provider,
+        model=model,
+        reasoning=reasoning,
+        max_retries=max_retries,
+        alias_confirm=alias_confirm,
+        ai_runner_factory=make_ai_runner if provider else None,
+    )
 
 
 def resolve_conflicts(

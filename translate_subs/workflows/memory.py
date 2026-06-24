@@ -11,7 +11,11 @@ from translate_subs.ai.analysis import (
     analyze_episode,
     source_digest,
 )
-from translate_subs.memory.compact import compact_project_memory
+from translate_subs.memory.compact import (
+    compact_project_memory,
+    detect_character_aliases,
+    merge_alias,
+)
 from translate_subs.memory.merge import (
     ConflictPolicy,
     ConflictResolver,
@@ -182,12 +186,40 @@ def update_memory(
     )
 
 
-def compact_memory(project: str, target: str = "es-latam") -> CompactMemoryResult:
+def compact_memory(
+    project: str,
+    target: str = "es-latam",
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    reasoning: str | None = None,
+    max_retries: int = 2,
+    alias_confirm: ConflictPrompt | None = None,
+    ai_runner_factory=None,
+) -> CompactMemoryResult:
     project_path = memory_root(project, target)
     if not project_path.exists():
         raise PipelineError(f"No memory at {project_path}. Run `analyze` first.")
     project_memory = ProjectMemory.load(project_path)
     report = compact_project_memory(project_memory)
+
+    if provider is not None and ai_runner_factory is not None:
+        from translate_subs.ai.provider import retry_provider_call
+
+        runner = ai_runner_factory(provider, model=model, reasoning=reasoning)
+        aliases = retry_provider_call(
+            lambda: detect_character_aliases(runner, project_memory.memory.characters),
+            max_retries=max_retries,
+            label="Alias detection",
+        )
+        for match in aliases:
+            if alias_confirm is not None:
+                choice = alias_confirm(match)
+                if choice == "skip":
+                    continue
+            if merge_alias(project_memory, match.canonical, match.alias):
+                report.merged_aliases.append(match)
+
     project_memory.save()
     return CompactMemoryResult(project_dir=project_path, report=report)
 
