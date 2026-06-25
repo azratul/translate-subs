@@ -21,6 +21,11 @@ formality/register, relationships, per-series glossary, and tone.
   original; the event's **style** (alignment, color, font) is kept too. Inside-text tags and
   karaoke are dropped. `.srt` has no positioning, so only basic italic/bold survives.
 
+In normal use, you point it at one movie/episode and get a translated subtitle next to the
+original file, ready for your player to pick up. For a series, you can optionally build a small
+per-series memory so names, genders, formality and recurring terms stay consistent across
+episodes.
+
 ## Requirements
 
 - Python ≥ 3.11 and [`uv`](https://docs.astral.sh/uv/).
@@ -104,78 +109,110 @@ untrusted subtitles through an agent CLI that has tool access.
 
 ## Quick start
 
-The series has Japanese audio and an **embedded English** subtitle track in `.ass`. Let's
-translate **episode 1 to Latin American Spanish** with `codex` / `gpt-5.5`.
+If you installed the tool globally, use `translate-subs`. If you are running from a checkout, use
+`uv run translate-subs` in the examples below.
+
+### 1. Check your setup
+
+Run `doctor` first. It tells you whether Python, `ffmpeg`/`ffprobe`, the data directories and
+optionally your translation backend are ready.
 
 ```bash
-# (Optional) List the embedded subtitle tracks
-uv run translate-subs probe /your/media/TV_Shows/Show/Season/file.mkv
+translate-subs doctor
+translate-subs doctor --provider ollama      # or claude / codex / litellm / ...
 ```
 
-### Quick option: translate without memory
+### 2. Pick a backend
+
+For personal use there are two common paths:
+
+- **Local and private:** run an Ollama model on your machine. No per-use API cost, and the subtitle
+  text stays local.
+- **Remote and usually stronger:** use an authenticated agent CLI such as `claude` or `codex`.
+  This can give better quality, but the visible subtitle text is sent to that provider.
+
+`identity` is only for testing the round-trip; it copies the source text without translating.
+
+### 3. Translate one movie or episode
+
+For a sidecar subtitle file:
 
 ```bash
-uv run translate-subs translate /your/media/TV_Shows/Show/Season/file.mkv \
-  --provider codex --model gpt-5.5 \
+translate-subs translate "/media/Movies/Movie.en.srt" \
+  --provider ollama --model qwen3:4b \
   --lang en --target es-latam \
-  --reasoning medium \
   --non-interactive
 ```
 
-This option produces the `.ass`, but creates no context or shared memory across episodes.
+For a video file with embedded subtitles, first list the tracks if you are unsure which one to use:
 
-### Recommended option: analyze and translate with memory
+```bash
+translate-subs probe "/media/TV Shows/Show/Season 1/Episode 01.mkv"
+```
 
-Use exactly the same `--project` in both commands:
+Then translate it:
+
+```bash
+translate-subs translate "/media/TV Shows/Show/Season 1/Episode 01.mkv" \
+  --provider ollama --model qwen3:4b \
+  --lang en --target es-latam \
+  --non-interactive
+```
+
+By default the result is written next to the input as `.ass`, for example:
+
+```text
+/media/TV Shows/Show/Season 1/Episode 01.es.ass
+```
+
+Use `--format srt` if you specifically want `.srt`, or `--out-dir` / `--output` to place the file
+somewhere else.
+
+### Better series consistency: analyze and translate with memory
+
+For one-off movies, `translate` is enough. For a series, run `analyze` before `translate` and keep
+the same `--project` name. The analysis creates or updates memory for character names, gender,
+relationships, recurring terms and tone.
 
 ```bash
 # 1) Analyze the episode and create/update the series memory
-uv run translate-subs analyze /your/media/TV_Shows/Show/Season/file.mkv \
-  --provider codex --model gpt-5.5 \
+translate-subs analyze "/media/TV Shows/Show/Season 1/Episode 01.mkv" \
+  --provider claude \
   --lang en --target es-latam \
-  --reasoning medium \
-  --project "Your TV Show Name" \
+  --project "Show" \
   --non-interactive
 
 # 2) Translate using the episode context and accumulated memory
-uv run translate-subs translate /your/media/TV_Shows/Show/Season/file.mkv \
-  --provider codex --model gpt-5.5 \
+translate-subs translate "/media/TV Shows/Show/Season 1/Episode 01.mkv" \
+  --provider ollama --model qwen3:4b \
   --lang en --target es-latam \
-  --reasoning medium \
-  --project "Your TV Show Name" \
+  --project "Show" \
   --non-interactive
 ```
 
 For the following episodes, repeat `analyze → translate` keeping
-`--project "Your TV Show Name"`. Each analysis updates the memory and each translation uses
-what has been learned so far.
+`--project "Show"`. Each analysis updates the memory and each translation uses what has been
+learned so far. A practical setup is to use a stronger remote model for `analyze` / `review`, and
+a cheaper local model for the high-volume `translate` step.
 
 `analyze` stores a fingerprint of the analyzed subtitle in `episode.context.json`. If you later
 `translate` or `review` against a changed version of that subtitle, the tool **warns** that the
 context sheet may be stale (re-run `analyze` to refresh it) — it never blocks, and older context
 files without the fingerprint are left alone.
 
-Result, next to the `.mkv` (so the player loads it automatically):
-
-```
-/your/media/TV_Shows/Show/Season/Example - S01E01.es.ass
-```
-
-(With `--format srt` the file would be `….es.srt`.)
-
 ### Review and readability (optional)
 
 ```bash
 # Review and apply only safe fixes (confirmed gender, glossary, names…)
-uv run translate-subs review "$EP" "$OUT" --provider codex --model gpt-5.5 \
+translate-subs review "$EP" "$OUT" --provider claude \
   --project "Your project" --apply --non-interactive
 
 # Readability control: compact lines that exceed the on-screen limits
-uv run translate-subs tighten "$OUT" --provider codex --model gpt-5.5 \
+translate-subs tighten "$OUT" --provider claude \
   --project "Your project" --apply
 
 # Validate the final file
-uv run translate-subs validate "$OUT"
+translate-subs validate "$OUT"
 ```
 
 `analyze`, `translate`, `review`, and `tighten` let you pick the CLI with `--provider`/`--model`;
@@ -190,10 +227,10 @@ immediately (`--retries 0` disables retries).
 
 ```bash
 # Japanese -> English   => ep.en.ass
-uv run translate-subs translate ep.mkv --provider codex --model gpt-5.5 --lang ja --target en
+translate-subs translate ep.mkv --provider ollama --model qwen3:4b --lang ja --target en
 
 # English -> French     => ep.fr.ass
-uv run translate-subs translate ep.en.srt --provider codex --model gpt-5.5 --lang en --target fr-FR
+translate-subs translate ep.en.srt --provider ollama --model qwen3:4b --lang en --target fr-FR
 ```
 
 ## Output format (`.ass` vs `.srt`)
@@ -219,7 +256,7 @@ positioning anyway, so only basic italic/bold survive.
 
 ```bash
 # .srt output (instead of the default .ass)
-uv run translate-subs translate "$EP" --provider codex --model gpt-5.5 \
+translate-subs translate "$EP" --provider ollama --model qwen3:4b \
   --lang en --target es-latam --format srt --non-interactive
 ```
 
@@ -253,8 +290,8 @@ SDK).
   `analyze`/`review`). `litellm` routes to any backend via its SDK with the provider
   prefix in `--model` (e.g. `ollama/qwen3:4b`, `gpt-4o-mini`); install it with
   `uv sync --extra litellm`.
-- `--model <id>` sets the provider's model (e.g. `--model gpt-5.5` for codex, `--model qwen3:4b`
-  for ollama). For `ollama`/`litellm` it is required.
+- `--model <id>` sets the provider's model (e.g. `--model qwen3:4b` for ollama, or a model name
+  supported by your agent CLI/API provider). For `ollama`/`litellm` it is required.
 - `--reasoning <minimal|low|medium|high|xhigh>` tunes the reasoning effort of **codex**
   (default `low`: translating doesn't need `xhigh`, which is slower and costlier).
 - `--retries <n>` controls retries on agent failures, invalid JSON, or wrong IDs (default `2`).
@@ -373,15 +410,15 @@ command:
 
 ```bash
 # Single episode: analyze first, then translate
-uv run translate-subs analyze episode.mkv \
-  --provider codex --project "Series" --non-interactive
+translate-subs analyze episode.mkv \
+  --provider claude --project "Series" --non-interactive
 
-uv run translate-subs translate episode.mkv \
-  --provider codex --project "Series" --non-interactive
+translate-subs translate episode.mkv \
+  --provider ollama --model qwen3:4b --project "Series" --non-interactive
 
 # Whole season: analyze all episodes first, then translate all (recommended)
-uv run translate-subs batch "Season 1/" --project "Series" \
-  --provider codex --pre-analyze --non-interactive
+translate-subs batch "Season 1/" --project "Series" \
+  --provider ollama --model qwen3:4b --pre-analyze --non-interactive
 ```
 
 ## Memory and conflicts
@@ -424,7 +461,7 @@ terms and duplicate or info-less characters from `data/projects/<series>/`. Run 
 memory has accumulated noise:
 
 ```bash
-uv run translate-subs compact-memory "Your Project"
+translate-subs compact-memory "Your Project"
 ```
 
 Contradicting suggestions are recorded in `conflicts.json` rather than silently overwriting a
@@ -435,7 +472,7 @@ confirmed gender; relationship descriptions are free text and never flagged. To 
 use the suggested one, or skip it (leaving it in the log):
 
 ```bash
-uv run translate-subs resolve-conflicts "Your Project"
+translate-subs resolve-conflicts "Your Project"
 ```
 
 You also don't need to `analyze` every episode: the cast and glossary stabilize after the first
@@ -552,10 +589,9 @@ specific items follow.
 - **`opencode` receives the prompt as a process argument** (visible in process listings, bounded
   by `ARG_MAX`). Translation blocks are small (a few KB), so this is accepted; the other CLI
   backends use stdin.
-- **`flatten_overlaps` is O(n²)** in the number of cues and does not cap stacking — negligible
-  for normal subtitle sizes (~1–2k cues), but a moment where many cues overlap will produce a
-  single cue with that many stacked lines. Only relevant to `--format srt`; the default `.ass`
-  keeps cues positioned and is unaffected.
+- **`flatten_overlaps` does not cap stacking.** It uses a sweep-line pass for the timeline, but a
+  moment where many cues overlap will still produce a single cue with that many stacked lines.
+  Only relevant to `--format srt`; the default `.ass` keeps cues positioned and is unaffected.
 - **`analyze` caps the transcript** (currently 4000 lines) to bound prompt size; longer inputs
   are truncated and the command prints a notice saying how many trailing lines were dropped.
 - **`review --apply` only writes fixes when the target maps 1:1 to the source.** That holds for
