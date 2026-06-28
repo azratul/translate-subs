@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.2.4] - 2026-06-28
+## [0.2.5] - 2026-06-28
 
 ### Fixed
 - `review` now pairs source and target lines by `unit.event_index` instead of sequential
