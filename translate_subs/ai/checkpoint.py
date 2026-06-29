@@ -228,13 +228,21 @@ def translate_with_checkpoint(
 
     with ThreadPoolExecutor(max_workers=parallel) as executor:
         futures = [executor.submit(_do_block, job) for job in pending]
-        for future in as_completed(futures):
-            block_id, _h, block_translations, block_untranslated = future.result()
-            translations.update(block_translations)
-            untranslated.extend(block_untranslated)
-            with progress_lock:
-                done += 1
-                if on_progress:
-                    on_progress(BlockProgress(done, total, block_id, reused=False))
+        try:
+            for future in as_completed(futures):
+                block_id, _h, block_translations, block_untranslated = future.result()
+                translations.update(block_translations)
+                untranslated.extend(block_untranslated)
+                with progress_lock:
+                    done += 1
+                    if on_progress:
+                        on_progress(BlockProgress(done, total, block_id, reused=False))
+        except BaseException:
+            # On the first failed block (or Ctrl-C), cancel blocks not yet started so we stop
+            # spending provider calls instead of waiting for the whole pool to drain. Already
+            # completed blocks are persisted in the checkpoint and resume on the next run.
+            for f in futures:
+                f.cancel()
+            raise
 
     return translations, untranslated

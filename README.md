@@ -587,8 +587,8 @@ specific items follow.
 - **Multi-writer coordination for memory.** The memory store assumes a single writer (one project
   processed at a time). There is no file locking or concurrent-update merging; atomic writes
   prevent *corruption*, not two processes racing on the same project.
-- **Persistent TOML config, structured/JSON logging, and a web UI.** Configuration is via flags;
-  output is human-readable text.
+- **Persistent TOML config, structured/JSON logging, and a web UI.** Configuration is via flags
+  and output is human-readable text; a web UI is a deliberate non-goal — this is a focused CLI.
 
 ### Known limitations (accepted trade-offs)
 
@@ -624,7 +624,7 @@ specific items follow.
 
 ### Planned, not yet implemented
 
-- Audio-assisted gender and a simple web UI.
+- Audio-assisted gender detection.
 
 ## License
 

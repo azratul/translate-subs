@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-06-29
+
+### Fixed
+- Parallel translation (`--parallel > 1`) now cancels blocks that have not yet started when a
+  block fails or the run is interrupted (Ctrl-C), instead of draining the thread pool and
+  spending further provider calls. Completed blocks remain in the checkpoint and resume on the
+  next run.
+
+### Added
+- Shipped a `py.typed` marker so type checkers honour the package's inline type hints when
+  `llm-subs` is installed as a dependency (`pipeline.py`/`cli.py` are documented as a stable API).
+
+### Changed
+- Documentation: a web UI is now stated consistently as a deliberate non-goal (a focused CLI),
+  removing the earlier contradiction between the scope and roadmap sections.
+
 ## [0.2.7] - 2026-06-29
 
 ### Fixed
@@ -401,7 +417,8 @@ First tagged release.
   (`extra="forbid"`) and validate on assignment; unexpected LLM gender values fold to `unknown`
   instead of entering memory.
 
-[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/azratul/llm-subs/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/azratul/llm-subs/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/azratul/llm-subs/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/azratul/llm-subs/compare/v0.2.4...v0.2.5

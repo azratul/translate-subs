@@ -1647,3 +1647,38 @@ def test_batch_analyze_skips_current_episodes(tmp_path, monkeypatch):
     assert result.n_failed == 0
     skipped = next(i for i in result.items if i.status == "skipped")
     assert skipped.input_path.name == "ep01.en.srt"
+
+
+def test_translate_with_checkpoint_parallel_cancels_pending_on_failure(tmp_path):
+    # In the parallel path, a failing block must cancel blocks not yet started so we stop
+    # spending provider calls instead of draining the whole pool.
+    import threading
+
+    from translate_subs.ai.checkpoint import BlockCheckpoint, translate_with_checkpoint
+    from translate_subs.ai.provider import ProviderError
+
+    n = 12
+    jobs = [_job(f"{i:04d}", [(f"{i:04d}", f"line {i}")]) for i in range(n)]
+    started: list[str] = []
+    lock = threading.Lock()
+
+    class _PoolProvider:
+        # Has translate_block, so translate_with_checkpoint takes the parallel path.
+        def translate_block(self, job):
+            with lock:
+                started.append(job.block_id)
+            if job.block_id == "0000":
+                raise ProviderError("boom")
+            # Slow enough that, with 2 workers, most blocks are still queued (cancellable)
+            # when block 0000 fails first.
+            import time
+
+            time.sleep(0.2)
+            return {line.id: line.text.upper() for line in job.translate}, []
+
+    cp = BlockCheckpoint(tmp_path / "cp.json", signature="ollama|m")
+    with pytest.raises(ProviderError, match="boom"):
+        translate_with_checkpoint(_PoolProvider(), jobs, checkpoint=cp, parallel=2)
+
+    # The failing block plus at most one in-flight block may have started; the rest were cancelled.
+    assert len(started) < n, f"expected pending blocks to be cancelled, all {n} started"
