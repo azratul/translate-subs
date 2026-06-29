@@ -96,7 +96,7 @@ def translate_subtitle(
             f"Unsupported format '{fmt}'. Use one of: {', '.join(SUPPORTED_FORMATS)}."
         )
     try:
-        validate_target(target)
+        target = validate_target(target)
     except ValueError as exc:
         raise PipelineError(str(exc)) from exc
     source = resolve_source_fn(

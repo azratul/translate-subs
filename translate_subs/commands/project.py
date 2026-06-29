@@ -11,7 +11,7 @@ from rich.table import Table
 from translate_subs.settings import ProjectSettings, load_settings, save_settings
 
 _CONFLICT_HELP = "On contradicting suggestions: ask | keep | overwrite | flag."
-_AI_PROVIDER_HELP = "claude | codex | antigravity | opencode"
+_AI_PROVIDER_HELP = "claude | codex | antigravity | opencode | ollama | litellm"
 # Options that fall through to project settings.json when not given on the command line.
 _AUX_DEFAULTED = (
     "provider",

@@ -64,7 +64,7 @@ def review_translation(
     ai_runner_factory: RunnerFactory,
 ) -> ReviewResult:
     try:
-        validate_target(target)
+        target = validate_target(target)
     except ValueError as exc:
         raise PipelineError(str(exc)) from exc
     source = resolve_source_fn(
@@ -152,7 +152,7 @@ def review_translation(
 
     report = ReviewReport(episode=episode_name, findings=findings)
     translated_fingerprint = hashlib.sha256(
-        "\n".join(event.plaintext for event in target_subs.events).encode("utf-8")
+        "\n".join(f"{e.start},{e.end},{e.plaintext}" for e in target_subs.events).encode("utf-8")
     ).hexdigest()[:16]
     manifest = {
         "Source": Path(source.origin).name,
@@ -243,7 +243,7 @@ def tighten_subtitle(
     ai_runner_factory: RunnerFactory,
 ) -> TightenResult:
     try:
-        validate_target(target)
+        target = validate_target(target)
     except ValueError as exc:
         raise PipelineError(str(exc)) from exc
     limits = limits or ReadabilityLimits()
@@ -321,7 +321,7 @@ def tighten_subtitle(
     episode_name = episode_key(translated_path)
     out_path = readability_path(project_name, target, episode_name)
     content_fingerprint = hashlib.sha256(
-        "\n".join(event.plaintext for event in subs.events).encode("utf-8")
+        "\n".join(f"{e.start},{e.end},{e.plaintext}" for e in subs.events).encode("utf-8")
     ).hexdigest()[:16]
     manifest = {
         "Translated": translated_path.name,

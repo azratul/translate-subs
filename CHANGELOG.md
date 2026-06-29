@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-06-29
+
+### Fixed
+- `validate_target` now rejects malformed language tags with leading, trailing or consecutive
+  hyphens (`-es`, `es-`, `es--latam`) instead of accepting them, and returns the normalised tag
+  (whitespace trimmed, underscores folded to hyphens). The normalised value is now propagated by
+  `translate`, `review`, `tighten` and `ProjectSettings`, so a target like `es_latam` is stored
+  and used as `es-latam` rather than steering memory/output to an inconsistent directory.
+- `merge_alias` removes the alias character case-insensitively and rewrites other characters'
+  relationship keys using the stored canonical name's casing, so an alias differing only in case
+  (`ALICE` vs `Alice Chambers`) is merged correctly instead of left behind. Merging a name into
+  itself (`Alice`/`alice` resolving to the same character) is now rejected rather than deleting
+  the character.
+- Readability and review report fingerprints now include each cue's start/end timing, so a
+  change that only shifts timing (which alters chars-per-second and the report) no longer keeps a
+  stale fingerprint.
+- The `--provider` help for `analyze`, `review`, `tighten`, `config` and `compact-memory` now
+  lists `ollama` and `litellm` alongside the agent CLIs, matching the providers those commands
+  actually accept.
+- Documented that `analyze`, `review` and `tighten` resolve their shared options from per-project
+  `settings.json` defaults, correcting the README claim that they only take options explicitly.
+
 ## [0.2.6] - 2026-06-28
 
 ### Fixed
@@ -379,7 +401,8 @@ First tagged release.
   (`extra="forbid"`) and validate on assignment; unexpected LLM gender values fold to `unknown`
   instead of entering memory.
 
-[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/azratul/llm-subs/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/azratul/llm-subs/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/azratul/llm-subs/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/azratul/llm-subs/compare/v0.2.3...v0.2.4

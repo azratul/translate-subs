@@ -159,7 +159,7 @@ def merge_alias(pm: ProjectMemory, canonical_name: str, alias_name: str) -> bool
     """
     canonical = pm.memory.find(canonical_name)
     alias = pm.memory.find(alias_name)
-    if canonical is None or alias is None:
+    if canonical is None or alias is None or canonical is alias:
         return False
 
     if canonical.gender == "unknown" and alias.gender in ("male", "female"):
@@ -173,15 +173,20 @@ def merge_alias(pm: ProjectMemory, canonical_name: str, alias_name: str) -> bool
         if not existing or len(rel) > len(existing):
             canonical.relationships[other] = rel
 
-    pm.memory.characters = [ch for ch in pm.memory.characters if ch.name != alias_name]
+    pm.memory.characters = [
+        ch for ch in pm.memory.characters if ch.name.casefold() != alias_name.casefold()
+    ]
 
     # Rewrite references to the alias in all other characters' relationship maps.
+    # Keys may differ in casing from alias_name (e.g. stored as "ALICE", called with "alice").
     for ch in pm.memory.characters:
-        if alias_name in ch.relationships:
-            rel = ch.relationships.pop(alias_name)
-            if canonical_name not in ch.relationships or len(rel) > len(
-                ch.relationships[canonical_name]
-            ):
-                ch.relationships[canonical_name] = rel
+        for key in list(ch.relationships.keys()):
+            if key.casefold() == alias_name.casefold():
+                rel = ch.relationships.pop(key)
+                if canonical.name not in ch.relationships or len(rel) > len(
+                    ch.relationships[canonical.name]
+                ):
+                    ch.relationships[canonical.name] = rel
+                break
 
     return True

@@ -57,20 +57,21 @@ _LANG_TOKENS = ISO_639_1 | _LANG_SUFFIX_SPELLINGS
 SUPPORTED_FORMATS = ("ass", "srt")
 DEFAULT_FORMAT = "ass"
 
-# A well-formed target is a language tag: alphanumerics and dashes (e.g. `es-latam`, `pt-BR`,
-# `zh-Hans`). Anything else (path separators, `..`, empty) is rejected up front so a hostile
-# `--target` can't steer an on-disk path — output filename or memory directory — outside its root.
-_TARGET_RE = re.compile(r"[A-Za-z0-9-]+")
+# A well-formed target is a language tag: one or more alphanumeric subtags joined by single
+# hyphens (e.g. `es-latam`, `pt-BR`, `zh-Hans`). Leading/trailing hyphens and consecutive
+# hyphens are rejected. Path separators, `..`, and empty values are rejected up front so a
+# hostile `--target` can't steer an on-disk path outside its root.
+_TARGET_RE = re.compile(r"[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
 
 
 def validate_target(target: str) -> str:
-    """Return the target unchanged if it is a valid language tag, else raise ``ValueError``."""
+    """Return the normalised target if it is a valid language tag, else raise ``ValueError``."""
     normalized = target.strip().replace("_", "-")
-    if not normalized or not _TARGET_RE.fullmatch(normalized) or not normalized.strip("-"):
+    if not normalized or not _TARGET_RE.fullmatch(normalized):
         raise ValueError(
             f"Invalid target language {target!r}: use a language tag like 'es-latam' or 'pt-BR'."
         )
-    return target
+    return normalized
 
 
 def lang_code(target: str) -> str:

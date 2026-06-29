@@ -394,9 +394,10 @@ llm-subs config "Show" --unset model         # clear a field back to the built-i
 ```
 
 These are stored in `<project>/settings.json` (next to the memory files; hand-editable too) and
-used by `translate` and `batch` as defaults: an explicit flag always wins, then the project
-setting, then the tool's built-in default. The auxiliary commands (`analyze`, `review`,
-`tighten`) still take their options explicitly.
+used by all commands as defaults: an explicit flag always wins, then the project setting, then
+the tool's built-in default. This applies to `translate`, `batch`, and the auxiliary commands
+`analyze`, `review`, and `tighten` (for their shared options: `provider`, `model`, `target`,
+`lang`, `reasoning`).
 
 ### What `--project` actually does
 
@@ -591,6 +592,17 @@ specific items follow.
 
 ### Known limitations (accepted trade-offs)
 
+- **`--strict-lang` is translation-only.** `analyze` and `review` can resolve a subtitle track
+  from a video container, but they intentionally do not expose `--strict-lang`; adding the flag
+  across those commands would expand the CLI for a rare personal-use case. When the container's
+  automatic language choice is ambiguous, use `probe` and pass an explicit `--track` (or analyze
+  a sidecar subtitle directly). `batch --pre-analyze` likewise uses the normal best-match
+  heuristic during its analysis phase.
+- **Mixed ASS drawing/text events are treated as drawings.** An event containing drawing mode
+  (`{\p1}` or higher) is skipped as a whole, even if it later switches back with `{\p0}` and
+  contains visible text. Such mixed events are uncommon, while extracting only the text portion
+  would require a stateful ASS override parser. If one must be translated, split or clean that
+  event in the source subtitle first. Pure drawing events remain preserved verbatim in ASS output.
 - **`opencode` receives the prompt as a process argument** (visible in process listings, bounded
   by `ARG_MAX`). Translation blocks are small (a few KB), so this is accepted; the other CLI
   backends use stdin.

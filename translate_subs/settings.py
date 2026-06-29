@@ -47,7 +47,7 @@ class ProjectSettings(BaseModel):
         # Validate the same way the workflows do, so an invalid target in settings.json is
         # rejected when the file is loaded rather than only at translate time.
         if value is not None:
-            validate_target(value)
+            return validate_target(value)
         return value
 
     @field_validator("provider", "analyze_provider")

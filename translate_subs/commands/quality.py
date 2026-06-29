@@ -20,7 +20,7 @@ def _print_diff_table(console, fixes: list[tuple[str, str, str]], title: str) ->
     console.print(table)
 
 
-_AI_PROVIDER_HELP = "claude | codex | antigravity | opencode"
+_AI_PROVIDER_HELP = "claude | codex | antigravity | opencode | ollama | litellm"
 # Options that fall through to project settings.json when not given on the command line.
 _AUX_DEFAULTED = ("provider", "model", "target", "lang", "reasoning")
 _TIGHTEN_DEFAULTED = ("provider", "model", "target", "reasoning")

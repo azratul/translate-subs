@@ -192,9 +192,44 @@ def test_validate_target_accepts_tags_and_rejects_paths():
 
     for good in ("es-latam", "pt-BR", "zh-Hans", "fr"):
         assert validate_target(good) == good
-    for bad in ("../../etc", "es/latam", "", "..", r"a\b", "a b"):
+    # Normalises whitespace and underscores.
+    assert validate_target(" es ") == "es"
+    assert validate_target("es_latam") == "es-latam"
+    # Malformed: leading/trailing/consecutive hyphens.
+    for bad in ("-es", "es-", "es--latam", "../../etc", "es/latam", "", "..", r"a\b", "a b"):
         with pytest.raises(ValueError, match="target"):
             validate_target(bad)
+
+
+def test_merge_alias_case_insensitive_removal():
+    from translate_subs.memory.compact import merge_alias
+    from translate_subs.memory.models import CharacterMemory, SeriesMemory
+    from translate_subs.memory.store import ProjectMemory
+
+    alice = CharacterMemory(name="Alice Chambers")
+    alias = CharacterMemory(name="ALICE")
+    bystander = CharacterMemory(name="Bob", relationships={"ALICE": "rivals"})
+    mem = ProjectMemory(
+        project_dir=Path("/tmp"),
+        memory=SeriesMemory(characters=[alice, alias, bystander]),
+    )
+
+    result = merge_alias(mem, "Alice Chambers", "alice")
+    assert result is True
+    names = [ch.name for ch in mem.memory.characters]
+    assert "ALICE" not in names, "alias should be removed regardless of casing"
+    assert "Alice Chambers" in names
+    # Relationship key must use canonical.name casing, not the caller's canonical_name arg.
+    assert "Alice Chambers" in bystander.relationships
+    assert "ALICE" not in bystander.relationships
+
+    # canonical is alias (same object via casefold) — must not remove the character.
+    mem2 = ProjectMemory(
+        project_dir=Path("/tmp"),
+        memory=SeriesMemory(characters=[CharacterMemory(name="Alice")]),
+    )
+    assert merge_alias(mem2, "Alice", "alice") is False
+    assert len(mem2.memory.characters) == 1
 
 
 def test_translate_rejects_path_like_target(tmp_path, monkeypatch):
