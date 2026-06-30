@@ -218,6 +218,80 @@ def test_output_name_uses_target_lang_code(tmp_path, monkeypatch):
     assert result.output_path.name == "ep.fr-fr.ass"  # region kept to avoid variant collisions
 
 
+def _srt_with(path, text):
+    subs = pysubs2.SSAFile()
+    subs.events.append(pysubs2.SSAEvent(start=0, end=2000, text=text))
+    subs.save(str(path), format_="srt")
+
+
+def test_translate_writes_manifest_and_reports_output_exists_when_unchanged(tmp_path, monkeypatch):
+    from translate_subs.workflows.models import OutputExistsError
+    from translate_subs.workflows.output_manifest import OutputManifest
+
+    projects = tmp_path / "projects"
+    monkeypatch.setattr(config, "PROJECTS_DIR", projects)
+    source = tmp_path / "ep.en.srt"
+    _srt_with(source, "Hello.")
+    kw = dict(provider="identity", interactive=False, fmt="srt", project="P")
+
+    pipeline.translate_subtitle(source, **kw)
+    manifests = list(projects.rglob("output.manifest.json"))
+    assert len(manifests) == 1
+    saved = OutputManifest.model_validate_json(manifests[0].read_text("utf-8"))
+    assert saved.provider == "identity" and saved.target == "es-latam" and saved.source_hash
+
+    # Re-running with the same source/settings is up to date -> skip, not stale.
+    with pytest.raises(OutputExistsError):
+        pipeline.translate_subtitle(source, **kw)
+
+
+def test_changed_source_reports_stale_and_force_refreshes(tmp_path, monkeypatch):
+    from translate_subs.workflows.models import OutputExistsError, StaleOutputError
+
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    source = tmp_path / "ep.en.srt"
+    _srt_with(source, "Hello.")
+    kw = dict(provider="identity", interactive=False, fmt="srt", project="P")
+    pipeline.translate_subtitle(source, **kw)
+
+    _srt_with(source, "A completely different line.")
+    with pytest.raises(StaleOutputError, match="source"):
+        pipeline.translate_subtitle(source, **kw)
+
+    # --force ignores staleness, rewrites, and refreshes the manifest to the new source.
+    pipeline.translate_subtitle(source, force=True, **kw)
+    with pytest.raises(OutputExistsError):
+        pipeline.translate_subtitle(source, **kw)
+
+
+def test_changed_model_reports_stale(tmp_path, monkeypatch):
+    from translate_subs.workflows.models import StaleOutputError
+
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    source = tmp_path / "ep.en.srt"
+    _srt_with(source, "Hello.")
+    kw = dict(provider="identity", interactive=False, fmt="srt", project="P")
+    pipeline.translate_subtitle(source, **kw)  # model unset -> recorded as ""
+
+    with pytest.raises(StaleOutputError, match="provider/model"):
+        pipeline.translate_subtitle(source, model="some-model", **kw)
+
+
+def test_legacy_output_without_manifest_reports_output_exists(tmp_path, monkeypatch):
+    from translate_subs.workflows.models import OutputExistsError
+
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    source = tmp_path / "ep.en.srt"
+    _srt_with(source, "Hello.")
+    # Output from an older version: present but with no manifest beside it.
+    _srt_with(tmp_path / "ep.es-latam.srt", "Hola.")
+
+    with pytest.raises(OutputExistsError):  # absent manifest -> treated as up to date, not stale
+        pipeline.translate_subtitle(
+            source, provider="identity", interactive=False, fmt="srt", project="P"
+        )
+
+
 def test_compact_memory_command(tmp_path, monkeypatch):
     from translate_subs.memory.models import CharacterMemory, SeriesMemory
     from translate_subs.memory.store import ProjectMemory

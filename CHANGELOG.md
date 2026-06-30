@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `batch` now detects **stale outputs**. `translate` records a small manifest next to each
+  episode's state (source fingerprint + target + provider/model + prompt version). On a later
+  `batch` run an existing output is reported as `stale` — surfaced as a warning, never silently
+  overwritten — when its source, provider/model or prompt changed since it was written, instead of
+  being skipped as up to date. Unchanged outputs are still skipped; use `--force` to retranslate.
+  Outputs produced before this release have no manifest and are treated as up to date (skipped),
+  not stale. (An explicit `--model` change is detected; relying on a provider's built-in default
+  and that default later changing is not.)
+
 ### Changed
 - `EpisodeContext` (the saved `episode.context.json`) now carries a `schema_version` field so a
   future format change can detect and migrate older files. The model stays liberal about unknown

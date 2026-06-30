@@ -410,6 +410,7 @@ def batch(
     marks = {
         "translated": "[green]translated[/green]",
         "skipped": "[yellow]skipped[/yellow]",
+        "stale": "[yellow]stale[/yellow]",
         "failed": "[red]failed[/red]",
     }
     untranslated_total = 0
@@ -421,6 +422,8 @@ def batch(
                 detail += f"  ([yellow]{len(item.untranslated_ids)} untranslated[/yellow])"
         elif item.status == "skipped":
             detail = "output exists (use --force)"
+        elif item.status == "stale":
+            detail = "source/model/prompt changed (use --force to retranslate)"
         else:
             detail = item.error or "error"
         table.add_row(item.input_path.name, marks[item.status], detail)
@@ -428,6 +431,7 @@ def batch(
     runtime.console.print(
         f"Translated [green]{result.n_translated}[/green], "
         f"skipped [yellow]{result.n_skipped}[/yellow], "
+        f"stale [yellow]{result.n_stale}[/yellow], "
         f"failed [red]{result.n_failed}[/red].  "
         f"Total: {_fmt_duration(translate_elapsed())}"
     )

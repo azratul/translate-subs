@@ -43,7 +43,15 @@ from translate_subs.workflows.models import (
     BatchResult,
     OutputExistsError,
     PipelineError,
+    StaleOutputError,
     TranslateResult,
+)
+from translate_subs.workflows.output_manifest import (
+    OutputManifest,
+    describe_change,
+    load_manifest,
+    manifest_path,
+    write_manifest,
 )
 from translate_subs.workflows.support import (
     atomic_save,
@@ -133,10 +141,23 @@ def translate_subtitle(
             f"Refusing to overwrite the source file with the output: {out_file}. "
             "Choose a different --output/--out-dir or --target."
         )
+    project_name, episode_name = project_episode(source, project)
+    out_manifest = OutputManifest(
+        source_hash=source_digest(units),
+        target=target,
+        provider=provider,
+        model=model or "",
+    )
+    out_manifest_path = manifest_path(project_name, target, episode_name)
     if out_file.exists() and not force:
+        stored = load_manifest(out_manifest_path)
+        if stored is not None and stored != out_manifest:
+            raise StaleOutputError(
+                f"Output is stale ({describe_change(stored, out_manifest)} changed since it was "
+                f"written): {out_file}. Use --force to retranslate."
+            )
         raise OutputExistsError(f"Output already exists: {out_file}. Use --force to overwrite.")
 
-    project_name, episode_name = project_episode(source, project)
     jobs_dir = episode_dir(project_name, target, episode_name) / "jobs"
 
     project_memory = ProjectMemory.load(memory_root(project_name, target))
@@ -216,6 +237,8 @@ def translate_subtitle(
 
     validation = atomic_save(subs, out_file, fmt=fmt, validate=validate_rendered)
     assert validation is not None
+    # Record what produced this output so a later `batch` run can tell up-to-date from stale.
+    write_manifest(out_manifest_path, out_manifest)
     return TranslateResult(
         source=source,
         output_path=out_file,
@@ -322,6 +345,9 @@ def batch_translate(
             translated = translate_fn(path, **kwargs)
         except OutputExistsError:
             result.items.append(BatchItem(path, "skipped", error=None))
+        except StaleOutputError as exc:
+            # Source/model/prompt changed since this output was written: warn, never overwrite.
+            result.items.append(BatchItem(path, "stale", error=str(exc)))
         except ProviderError:
             raise  # systemic failure (quota, bad model, auth) — abort the batch
         except (PipelineError, *_EXPECTED_PIPELINE_ERRORS) as exc:

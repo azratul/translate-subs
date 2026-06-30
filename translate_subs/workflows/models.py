@@ -27,6 +27,15 @@ class OutputExistsError(PipelineError):
     """
 
 
+class StaleOutputError(PipelineError):
+    """Raised when an output exists but the source, provider/model or prompt changed since it was
+    written (per its recorded manifest).
+
+    A distinct type so `batch` can record the episode as *stale* — surfaced as a warning, never
+    silently overwritten — instead of skipping it as up to date or failing it.
+    """
+
+
 class AnalysisCurrentError(Exception):
     """Raised by `analyze_subtitle` when the context is already current (source unchanged).
 
@@ -51,7 +60,7 @@ class TranslateResult:
 @dataclass
 class BatchItem:
     input_path: Path
-    status: Literal["translated", "skipped", "failed"]
+    status: Literal["translated", "skipped", "stale", "failed"]
     output_path: Path | None = None
     error: str | None = None
     untranslated_ids: list[str] = field(default_factory=list)
@@ -68,6 +77,10 @@ class BatchResult:
     @property
     def n_skipped(self) -> int:
         return sum(1 for item in self.items if item.status == "skipped")
+
+    @property
+    def n_stale(self) -> int:
+        return sum(1 for item in self.items if item.status == "stale")
 
     @property
     def n_failed(self) -> int:

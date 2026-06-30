@@ -355,10 +355,13 @@ llm-subs batch . --glob '*.mkv' --glob '*.mp4' -r          # several patterns, r
 It selects files with `--glob` (default `*.mkv`, repeatable; `-r`/`--recursive` descends into
 subdirectories) and skips any file that already looks like one of its own outputs. Each episode
 is independent: one whose output already exists is **skipped** (pass `--force` to redo it), and one
-that errors is **failed** and the run moves on — a single bad episode never aborts the season. A
-summary table reports translated/skipped/failed, and the command exits non-zero if any episode
-failed (or, with `--fail-on-untranslated`, if any line was left untranslated). Because each
-episode still checkpoints per block, interrupting a season and rerunning resumes mid-episode.
+that errors is **failed** and the run moves on — a single bad episode never aborts the season. If
+an existing output is **stale** — its source, provider/model or prompt changed since it was written
+— it is reported as such (a warning, not an error) rather than skipped, so you know to rerun it with
+`--force`; the existing file is never overwritten on its own. A summary table reports
+translated/skipped/stale/failed, and the command exits non-zero if any episode failed (or, with
+`--fail-on-untranslated`, if any line was left untranslated). Because each episode still checkpoints
+per block, interrupting a season and rerunning resumes mid-episode.
 
 With `--out-dir`, each input's sub-directory relative to the batch root is mirrored under it
 (`Season 1/Episode 01.mkv` → `<out-dir>/Season 1/Episode 01.es-latam.ass`), so two same-named

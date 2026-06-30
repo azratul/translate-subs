@@ -1118,6 +1118,36 @@ def test_batch_translate_skips_done_and_continues_past_failures(tmp_path, monkey
     assert seen == ["ep01.en.srt", "ep02.en.srt", "ep03.en.srt"]  # progress per episode
 
 
+def test_batch_reports_stale_when_source_changed(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    src = tmp_path / "ep01.en.srt"
+    _one_line_srt(src)
+    common = dict(
+        globs=("*.srt",),
+        provider="identity",
+        target="es-latam",
+        fmt="srt",
+        interactive=False,
+        project="P",
+    )
+
+    first = pipeline.batch_translate(tmp_path, **common)
+    assert first.n_translated == 1 and first.n_stale == 0
+    output = tmp_path / "ep01.es-latam.srt"
+    written = output.read_text("utf-8")
+
+    # Edit the source after translating: the existing output is now stale.
+    subs = pysubs2.SSAFile()
+    subs.events.append(pysubs2.SSAEvent(start=0, end=2000, text="A different line entirely."))
+    subs.save(str(src), format_="srt")
+
+    second = pipeline.batch_translate(tmp_path, **common)
+    item = {i.input_path.name: i for i in second.items}["ep01.en.srt"]
+    assert item.status == "stale"
+    assert second.n_stale == 1 and second.n_translated == 0 and second.n_failed == 0
+    assert output.read_text("utf-8") == written  # stale output is warned about, never overwritten
+
+
 def test_batch_out_dir_mirrors_subfolders_no_collision(tmp_path, monkeypatch):
     # Same-named episodes in different season folders must not collapse onto one flat output.
     monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
