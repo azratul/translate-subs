@@ -6,6 +6,58 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-30
+
+### Fixed
+- SRT output now keeps a cue's whole-line italic/underline (narration, songs, flashbacks) instead
+  of flattening it to plain text — `flatten_overlaps` carries the emphasis through, computed from
+  the final `\i`/`\u`/`\b` toggle state (so `{\i1}{\i0}` is correctly *not* italic), and the writer
+  renders it as `<i>`/`<u>`. (Bold is carried but pysubs2's SRT writer doesn't emit `<b>`; partial
+  inline emphasis can't survive, since the translation reorders words.)
+- Output filenames no longer collide between variants of one language. `lang_code` keeps the
+  region/script for multi-subtag targets, so `es-latam` → `<base>.es-latam.ass` and `es-ES` →
+  `<base>.es-es.ass` (likewise `zh-Hans`/`zh-Hant`) instead of both producing `<base>.es.ass`. A
+  bare language is unchanged (`es` → `<base>.es.ass`). **Note:** the default `es-latam` target now
+  writes `<base>.es-latam.ass`.
+- Multi-subtag language suffixes (`es-latam`, `pt-BR`, `zh-Hans`) are now recognized consistently
+  across naming **and** sidecar resolution via one shared `is_lang_suffix` helper. Previously only
+  the output filename kept the region: `base_stem` left the suffix on (so re-translating
+  `ep.es-latam.srt` produced `ep.es-latam.fr-fr.ass`) and a `movie.es-latam.srt` sidecar was not
+  detected.
+- `doctor --provider ollama` no longer crashes on a 200 response with an unexpected JSON shape
+  (`[]`, `{"models": null}`, `{"models": [null]}`); it warns instead.
+- Readability metrics measure on-screen **display width** instead of `len()`: combining marks add
+  no column and CJK/fullwidth glyphs count as two, so limits stay meaningful for
+  Japanese/Chinese/accented subtitles.
+- `review` reports no longer claim a provider/model when no LLM ran (deterministic-only or
+  re-segmented-SRT runs now record `(none)`), and both `review` and `tighten` record the resolved
+  model instead of `(default)`.
+
+### Added
+- `purge-cache` command: deletes the cache of subtitle tracks extracted from containers
+  (`$XDG_CACHE_HOME/llm-subs/work`). Per-series memory, episode context and reports are not
+  touched. Pass `--yes`/`-y` to skip the confirmation prompt.
+- `doctor` now reports the installed `llm-subs` version, and `doctor --provider ollama --model X`
+  verifies the model is actually installed on the server (not just that the server answers).
+- The `tighten` readability report records the provider and model that produced the compactions,
+  matching `review`'s provenance manifest.
+
+### Security
+- Internal state that may contain subtitle text — series memory
+  (`memory.json`/`glossary.json`/`style_guide.json`/`conflicts.json`), `settings.json`, episode
+  context, block checkpoints, file-handoff job files, and the `review`/`readability` reports — is
+  now written **owner-only (0600)** instead of widened to the umask. The final translated subtitle
+  keeps normal permissions so a media server (Jellyfin/Plex) under another account can read it.
+
+### Changed
+- CI now also runs the test suite on Python 3.14, exercises a real identity translation against the
+  installed wheel (not just `--help`), and installs the package with `pip` plus the `litellm` extra
+  to catch fresh-resolution and optional-dependency breakage.
+- PyPI publishing migrated from a long-lived `PYPI_TOKEN` to Trusted Publishing (OIDC).
+- Added a `CODE_OF_CONDUCT.md`, expanded `CONTRIBUTING.md` (architecture overview, how to add a
+  provider, per-provider troubleshooting), issue and pull-request templates, and a documented
+  versioning/compatibility policy.
+
 ## [0.3.0] - 2026-06-30
 
 ### Fixed
@@ -458,7 +510,8 @@ First tagged release.
   (`extra="forbid"`) and validate on assignment; unexpected LLM gender values fold to `unknown`
   instead of entering memory.
 
-[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/azratul/llm-subs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/azratul/llm-subs/compare/v0.2.8...v0.3.0
 [0.2.8]: https://github.com/azratul/llm-subs/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/azratul/llm-subs/compare/v0.2.6...v0.2.7

@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
         include:
           - os: macos-latest
             python-version: "3.12"
@@ -96,3 +96,33 @@ jobs:
             fi
             /tmp/smoke/bin/${COMMAND} --help >/dev/null
           done
+          # Run the real pipeline as a user would, not just --help: a full identity round-trip.
+          printf '1\n00:00:01,000 --> 00:00:03,000\nHello world.\n' > /tmp/smoke/ep.en.srt
+          /tmp/smoke/bin/llm-subs translate /tmp/smoke/ep.en.srt \
+            --provider identity --target es-latam --out-dir /tmp/smoke/out --non-interactive
+          test -f "/tmp/smoke/out/ep.es-latam.ass" || { echo "expected output not produced"; exit 1; }
+
+  # What a brand-new user gets from `pip install` (fresh dependency resolution, not the dev
+  # lockfile), plus the optional litellm extra that `uv sync` (no extras) never exercises.
+  pip-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Install from source with pip (no lockfile)
+        run: |
+          python -m venv /tmp/pipenv
+          /tmp/pipenv/bin/pip install .
+          /tmp/pipenv/bin/pip check
+          /tmp/pipenv/bin/llm-subs --help >/dev/null
+          printf '1\n00:00:01,000 --> 00:00:03,000\nHello world.\n' > /tmp/pip-ep.en.srt
+          /tmp/pipenv/bin/llm-subs translate /tmp/pip-ep.en.srt \
+            --provider identity --target es-latam --out-dir /tmp/pip-out --non-interactive
+          test -f "/tmp/pip-out/ep.es-latam.ass" || { echo "expected output not produced"; exit 1; }
+      - name: Install the litellm extra and import it
+        run: |
+          /tmp/pipenv/bin/pip install ".[litellm]"
+          /tmp/pipenv/bin/pip check
+          /tmp/pipenv/bin/python -c "import litellm; from translate_subs.ai.api_adapters import LiteLLMRunner"

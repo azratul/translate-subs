@@ -167,8 +167,12 @@ llm-subs translate "/media/TV Shows/Show/Season 1/Episode 01.mkv" \
 By default the result is written next to the input as `.ass`, for example:
 
 ```text
-/media/TV Shows/Show/Season 1/Episode 01.es.ass
+/media/TV Shows/Show/Season 1/Episode 01.es-latam.ass
 ```
+
+The language code keeps the region/script of a variant (`es-latam` → `.es-latam.ass`,
+`es-ES` → `.es-es.ass`), so two variants of one language never overwrite each other; a bare
+language stays bare (`--target es` → `.es.ass`).
 
 Use `--format srt` if you specifically want `.srt`, or `--out-dir` / `--output` to place the file
 somewhere else.
@@ -236,7 +240,7 @@ immediately (`--retries 0` disables retries).
 # Japanese -> English   => ep.en.ass
 llm-subs translate ep.mkv --provider ollama --model qwen3:4b --lang ja --target en
 
-# English -> French     => ep.fr.ass
+# English -> French     => ep.fr-fr.ass  (region kept so variants never collide)
 llm-subs translate ep.en.srt --provider ollama --model qwen3:4b --lang en --target fr-FR
 ```
 
@@ -283,6 +287,7 @@ llm-subs translate "$EP" --provider ollama --model qwen3:4b \
 | `resolve-conflicts <project>` | Walks flagged `conflicts.json` entries interactively (keep stored / use suggested / skip). |
 | `validate <subtitle>` | Structural validation (parseable, timings, no leftover markup). |
 | `doctor [--provider <name>]` | Checks the environment: media tools (ffprobe/ffmpeg), writable data/cache dirs, and — with `--provider` — that provider's backend (CLI on PATH, reachable Ollama server, or installed litellm). |
+| `purge-cache` | Deletes the cache of subtitle tracks extracted from containers (`$XDG_CACHE_HOME/llm-subs/work`). Series memory and reports are not touched. |
 
 ### Providers (`--provider`)
 
@@ -356,8 +361,9 @@ failed (or, with `--fail-on-untranslated`, if any line was left untranslated). B
 episode still checkpoints per block, interrupting a season and rerunning resumes mid-episode.
 
 With `--out-dir`, each input's sub-directory relative to the batch root is mirrored under it
-(`Season 1/Episode 01.mkv` → `<out-dir>/Season 1/Episode 01.es.ass`), so two same-named episodes
-in different season folders never collapse onto one output filename and overwrite each other.
+(`Season 1/Episode 01.mkv` → `<out-dir>/Season 1/Episode 01.es-latam.ass`), so two same-named
+episodes in different season folders never collapse onto one output filename and overwrite each
+other.
 
 #### Building series memory before translating
 
@@ -522,6 +528,38 @@ quirks of each CLI.
 Application logic is grouped by use case under `translate_subs/workflows/`, while Typer callbacks
 live under `translate_subs/commands/`. Existing imports, command names, options and output remain
 on the facades so integrations do not depend on the internal module layout.
+
+### Versioning and compatibility policy
+
+The project follows [Semantic Versioning](https://semver.org/). While on `0.x`, the public surface
+is the **CLI** (command names, options, output filename convention) and the facades in
+`pipeline.py`/`cli.py`; the internal module layout is not a stable API.
+
+- **Patch** (`0.x.Y`): bug fixes and docs, no behaviour change you need to act on.
+- **Minor** (`0.X.0`): new commands/flags and changes to *default* behaviour (called out in the
+  changelog).
+- A flag or command is **deprecated** before removal: it keeps working for at least one minor
+  release while emitting a warning, and the removal is noted in `CHANGELOG.md`. The
+  `translate-subs` command remains as a permanent alias for `llm-subs`.
+
+Every user-visible change is recorded in [`CHANGELOG.md`](CHANGELOG.md) under `[Unreleased]` first.
+
+### Local data and privacy
+
+Everything runs locally; the only data that leaves your machine is the text sent to whichever
+**provider** you choose (a remote agent CLI or model API — `ollama`/`litellm` against a local
+server send nothing externally). On disk the tool stores:
+
+- **Per-series memory** under `$XDG_DATA_HOME/llm-subs/projects/<series>/<target>/`: glossary,
+  characters (with gender/register), style guide, conflicts, per-episode context, block
+  checkpoints (which contain translated text), `settings.json`, and the `review`/`readability`
+  reports. These are written **owner-only (0600)** since they may contain subtitle text.
+- **Extracted subtitle tracks** under `$XDG_CACHE_HOME/llm-subs/work/`: only a demux cache so a
+  rerun skips re-extraction. Clear it any time with **`llm-subs purge-cache`** (memory and reports
+  are not touched).
+
+The **final translated subtitle** is written with your normal umask (not 0600) so a media server
+running under another account (Jellyfin/Plex) can read it.
 
 ## Scope, non-goals and limitations
 

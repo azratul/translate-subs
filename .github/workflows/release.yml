@@ -15,8 +15,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Trusted Publishing to PyPI via OIDC: no long-lived PYPI_TOKEN. The PyPI publisher is bound to
+    # this workflow and the `pypi` environment, so the job must declare both.
+    environment: pypi
     permissions:
       contents: write # create the GitHub Release and upload the artifacts
+      id-token: write # mint the OIDC token PyPI exchanges for a short-lived upload credential
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -73,9 +77,15 @@ jobs:
             fi
             /tmp/smoke/bin/${COMMAND} --help >/dev/null
           done
+          # Exercise the real pipeline as a user would: a full identity round-trip (no LLM),
+          # not just --help. Catches packaging gaps that only surface when parsing/reinsertion run.
+          printf '1\n00:00:01,000 --> 00:00:03,000\nHello world.\n' > /tmp/smoke/ep.en.srt
+          /tmp/smoke/bin/llm-subs translate /tmp/smoke/ep.en.srt \
+            --provider identity --target es-latam --out-dir /tmp/smoke/out --non-interactive
+          test -f "/tmp/smoke/out/ep.es-latam.ass" || { echo "expected output not produced"; exit 1; }
 
-      - name: Publish to PyPI
-        run: uv publish --token ${{ secrets.PYPI_TOKEN }}
+      - name: Publish to PyPI (Trusted Publishing / OIDC)
+        run: uv publish --trusted-publishing always
 
       - name: Create GitHub Release
         env:
