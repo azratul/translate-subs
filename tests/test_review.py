@@ -350,6 +350,16 @@ def test_review_translation_applies_only_safe_fixes(tmp_path, monkeypatch):
     assert reloaded.events[0].plaintext == "Estoy cansada de esto."
     assert reloaded.events[1].plaintext == "Vámonos."  # literal fix not applied
 
+    # The report's provenance must match the file as written, not the pre-apply state.
+    import hashlib
+
+    def _fp(events) -> str:
+        joined = "\n".join(f"{e.start},{e.end},{e.plaintext}" for e in events)
+        return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
+
+    expected = _fp(reloaded.events)
+    assert f"Translated fingerprint: {expected}" in report_text
+
 
 def test_review_apply_skips_conflicting_same_line_fixes(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")

@@ -301,13 +301,25 @@ def batch_translate(
     """Translate matching inputs independently, continuing after per-file failures."""
     target = translate_kwargs.get("target", config.DEFAULT_TARGET)
     inputs = discover_inputs_fn(directory, globs=globs, recursive=recursive, target=target)
+    out_dir = translate_kwargs.get("out_dir")
+    base_resolved = Path(directory).resolve()
     result = BatchResult()
     total = len(inputs)
     for index, path in enumerate(inputs, start=1):
         if on_episode is not None:
             on_episode(index, total, path)
         try:
-            translated = translate_fn(path, **translate_kwargs)
+            kwargs = translate_kwargs
+            if out_dir is not None:
+                # Mirror each input's sub-directory under out_dir so same-named episodes in
+                # different folders (Season 1/Episode 01 vs Season 2/Episode 01) don't both collapse
+                # onto one flat <out-dir>/Episode 01.<lang>.<fmt> and overwrite each other.
+                try:
+                    subdir = path.parent.resolve().relative_to(base_resolved)
+                except ValueError:
+                    subdir = Path()
+                kwargs = {**translate_kwargs, "out_dir": Path(out_dir) / subdir}
+            translated = translate_fn(path, **kwargs)
         except OutputExistsError:
             result.items.append(BatchItem(path, "skipped", error=None))
         except ProviderError:

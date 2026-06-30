@@ -1037,6 +1037,33 @@ def test_batch_translate_skips_done_and_continues_past_failures(tmp_path, monkey
     assert seen == ["ep01.en.srt", "ep02.en.srt", "ep03.en.srt"]  # progress per episode
 
 
+def test_batch_out_dir_mirrors_subfolders_no_collision(tmp_path, monkeypatch):
+    # Same-named episodes in different season folders must not collapse onto one flat output.
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    (tmp_path / "Season 1").mkdir()
+    (tmp_path / "Season 2").mkdir()
+    _one_line_srt(tmp_path / "Season 1" / "Episode 01.en.srt")
+    _one_line_srt(tmp_path / "Season 2" / "Episode 01.en.srt")
+    out_dir = tmp_path / "out"
+
+    result = pipeline.batch_translate(
+        tmp_path,
+        globs=("*.srt",),
+        recursive=True,
+        provider="identity",
+        target="es-latam",
+        fmt="srt",
+        interactive=False,
+        project="P",
+        out_dir=out_dir,
+    )
+
+    assert result.n_translated == 2 and result.n_skipped == 0
+    # Each episode lands under its own mirrored season directory, not one shared filename.
+    assert (out_dir / "Season 1" / "Episode 01.es.srt").exists()
+    assert (out_dir / "Season 2" / "Episode 01.es.srt").exists()
+
+
 def test_batch_cli_exits_nonzero_on_failure(tmp_path, monkeypatch):
     from translate_subs import cli
     from translate_subs.pipeline import BatchItem, BatchResult

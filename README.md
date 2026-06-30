@@ -213,6 +213,8 @@ llm-subs review "$EP" "$OUT" --provider claude \
   --project "Your project" --apply --non-interactive
 
 # Readability control: compact lines that exceed the on-screen limits
+# (pass --source "$EP" when "$OUT" lives in a separate --out-dir, so the report is filed
+# under the same episode directory as the checkpoint/context)
 llm-subs tighten "$OUT" --provider claude \
   --project "Your project" --apply
 
@@ -352,6 +354,10 @@ that errors is **failed** and the run moves on — a single bad episode never ab
 summary table reports translated/skipped/failed, and the command exits non-zero if any episode
 failed (or, with `--fail-on-untranslated`, if any line was left untranslated). Because each
 episode still checkpoints per block, interrupting a season and rerunning resumes mid-episode.
+
+With `--out-dir`, each input's sub-directory relative to the batch root is mirrored under it
+(`Season 1/Episode 01.mkv` → `<out-dir>/Season 1/Episode 01.es.ass`), so two same-named episodes
+in different season folders never collapse onto one output filename and overwrite each other.
 
 #### Building series memory before translating
 

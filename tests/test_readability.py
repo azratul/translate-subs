@@ -277,3 +277,31 @@ def test_tighten_skips_drawings_and_comments(tmp_path, monkeypatch):
     assert r"\p1" in reloaded.events[1].text
     assert reloaded.events[2].is_comment
     assert reloaded.events[2].plaintext == "Staff comment: this line is very long."
+
+
+def test_tighten_source_keys_report_to_source_episode(tmp_path, monkeypatch):
+    # When the translated file lives in a separate --out-dir, --source keys the report to the same
+    # episode directory translate/review used (hashed off the source's folder), not the out-dir's.
+    from translate_subs.workflows.support import episode_key, readability_path
+
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    src_dir = tmp_path / "Season 1"
+    src_dir.mkdir()
+    source = src_dir / "Episode 01.en.srt"
+    pysubs2.SSAFile().save(str(source), format_="srt")  # only needed for its path/folder
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    subs = pysubs2.SSAFile()
+    subs.events.append(pysubs2.SSAEvent(start=0, end=2000, text="Hola."))
+    translated = out_dir / "Episode 01.es.srt"
+    subs.save(str(translated), format_="srt")
+
+    result = pipeline.tighten_subtitle(
+        translated, project="Serie", target="es-latam", source=source, use_llm=False
+    )
+
+    expected = readability_path("Serie", "es-latam", episode_key(source))
+    assert result.report_path == expected
+    # And it differs from keying off the translated file's own (out-dir) folder.
+    assert result.report_path != readability_path("Serie", "es-latam", episode_key(translated))

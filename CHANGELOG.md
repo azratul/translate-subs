@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-30
+
+### Fixed
+- `batch --out-dir` no longer overwrites same-named episodes from different folders. Each input's
+  sub-directory relative to the batch root is now mirrored under `--out-dir`
+  (`Season 1/Episode 01.mkv` → `<out>/Season 1/Episode 01.es.ass`), so
+  `Season 1/Episode 01` and `Season 2/Episode 01` produce distinct files instead of colliding.
+- `review --apply` now writes the report's `Translated fingerprint` from the file *after* the safe
+  fixes are applied, so the provenance manifest matches what is on disk instead of being
+  immediately stale.
+- `tighten` gained a `--source` flag: when the translated file lives in a separate `--out-dir`,
+  pass the original input so the readability report is keyed to the same episode directory as the
+  checkpoint/context (which are keyed off the source) instead of a divergent one.
+
 ### Security
 - `opencode` provider now denies **all** of opencode's built-in tools via an inline deny-all
   permission config (`OPENCODE_CONFIG_CONTENT`). Previously only `--pure` was passed, which merely
@@ -444,7 +458,8 @@ First tagged release.
   (`extra="forbid"`) and validate on assignment; unexpected LLM gender values fold to `unknown`
   instead of entering memory.
 
-[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.2.8...HEAD
+[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/azratul/llm-subs/compare/v0.2.8...v0.3.0
 [0.2.8]: https://github.com/azratul/llm-subs/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/azratul/llm-subs/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/azratul/llm-subs/compare/v0.2.5...v0.2.6

@@ -121,6 +121,12 @@ def tighten(
         "es-latam", help="Target language/variant whose memory directory holds the report."
     ),
     project: str | None = typer.Option(None, help="Project/series name."),
+    source: Path | None = typer.Option(
+        None,
+        "--source",
+        help="Original input the translation came from; keys the report to the same episode "
+        "directory as translate/review when the translated file lives in --out-dir.",
+    ),
     max_chars_per_line: int = typer.Option(42, help="Max characters per visual line."),
     max_lines: int = typer.Option(2, help="Max lines per subtitle."),
     max_cps: float = typer.Option(18.0, help="Max characters per second."),
@@ -153,6 +159,7 @@ def tighten(
                 translated,
                 target=target,
                 project=project,
+                source=source,
                 limits=limits,
                 use_llm=not no_llm,
                 apply=apply,

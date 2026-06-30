@@ -151,20 +151,6 @@ def review_translation(
         )
 
     report = ReviewReport(episode=episode_name, findings=findings)
-    translated_fingerprint = hashlib.sha256(
-        "\n".join(f"{e.start},{e.end},{e.plaintext}" for e in target_subs.events).encode("utf-8")
-    ).hexdigest()[:16]
-    manifest = {
-        "Source": Path(source.origin).name,
-        "Translated": translated_path.name,
-        "Target": target,
-        "Source fingerprint": source_digest(units),
-        "Translated fingerprint": translated_fingerprint,
-        "Provider": provider,
-        "Model": model or "(default)",
-    }
-    out_path = review_path(project_name, target, episode_name)
-    atomic_write_text(out_path, render_markdown(report, manifest))
 
     aligned = len({unit.id for unit in units}) == len(units) and all(
         unit.event_index < len(target_subs.events)
@@ -214,6 +200,24 @@ def review_translation(
                     validate=lambda path: validate_output(path, units),
                 )
 
+    # Fingerprint and write the report *after* applying safe fixes, so the manifest matches the
+    # file on disk: with --apply, target_subs (and the saved file) reflect the fixes, so computing
+    # the fingerprint earlier would leave the report's provenance immediately stale.
+    translated_fingerprint = hashlib.sha256(
+        "\n".join(f"{e.start},{e.end},{e.plaintext}" for e in target_subs.events).encode("utf-8")
+    ).hexdigest()[:16]
+    manifest = {
+        "Source": Path(source.origin).name,
+        "Translated": translated_path.name,
+        "Target": target,
+        "Source fingerprint": source_digest(units),
+        "Translated fingerprint": translated_fingerprint,
+        "Provider": provider,
+        "Model": model or "(default)",
+    }
+    out_path = review_path(project_name, target, episode_name)
+    atomic_write_text(out_path, render_markdown(report, manifest))
+
     return ReviewResult(
         report=report,
         report_path=out_path,
@@ -232,6 +236,7 @@ def tighten_subtitle(
     *,
     target: str = "es-latam",
     project: str | None = None,
+    source: str | Path | None = None,
     limits: ReadabilityLimits | None = None,
     use_llm: bool = True,
     apply: bool = False,
@@ -316,9 +321,13 @@ def tighten_subtitle(
 
     # Resolve project/episode/target the same way translate and review do, so the readability
     # report lands in the same per-episode directory as the rest of that episode's state instead
-    # of a divergent `<project>/<lang-from-filename>/<base-stem>/` location.
-    project_name = project or default_project(translated_path)
-    episode_name = episode_key(translated_path)
+    # of a divergent `<project>/<lang-from-filename>/<base-stem>/` location. The episode key hashes
+    # the *parent directory*, so a translated file produced into --out-dir would key to a different
+    # directory than the checkpoint/context (keyed off the source); pass --source to key off the
+    # original input and keep all of an episode's state together.
+    key_origin = Path(source) if source is not None else translated_path
+    project_name = project or default_project(key_origin)
+    episode_name = episode_key(key_origin)
     out_path = readability_path(project_name, target, episode_name)
     content_fingerprint = hashlib.sha256(
         "\n".join(f"{e.start},{e.end},{e.plaintext}" for e in subs.events).encode("utf-8")
