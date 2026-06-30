@@ -128,7 +128,7 @@ class BlockCheckpoint:
                 for h, e in self.entries.items()
             },
         }
-        atomic_write_text(self.path, json.dumps(data, ensure_ascii=False, indent=2))
+        atomic_write_text(self.path, json.dumps(data, ensure_ascii=False, indent=2), private=True)
 
     def save_entry(self, h: str, entry: _Entry) -> None:
         """Thread-safe: add an entry to the checkpoint and persist it atomically."""

@@ -131,7 +131,7 @@ def analyze_subtitle(
     context.source_hash = source_digest(units)
 
     out_path = context_path(project_name, target, episode_name)
-    atomic_write_text(out_path, context.model_dump_json(indent=2))
+    atomic_write_text(out_path, context.model_dump_json(indent=2), private=True)
     report = merge_into_memory(
         project_name,
         context,

@@ -155,7 +155,7 @@ class FileHandoffProvider(TranslationProvider):
         for job in jobs:
             in_path = self.jobs_dir / f"block_{job.block_id}.in.json"
             out_path = self.jobs_dir / f"block_{job.block_id}.out.json"
-            atomic_write_text(in_path, job.model_dump_json(indent=2))
+            atomic_write_text(in_path, job.model_dump_json(indent=2), private=True)
             if not out_path.exists():
                 pending.append(out_path.name)
                 continue

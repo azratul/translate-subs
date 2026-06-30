@@ -20,11 +20,16 @@ def default_file_mode() -> int:
     return 0o666 & ~umask
 
 
-def atomic_write_text(path: str | Path, text: str) -> None:
+def atomic_write_text(path: str | Path, text: str, *, private: bool = False) -> None:
     """Write `text` to `path` atomically: a temp file in the same dir, then os.replace.
 
     An interrupted run can no longer leave a half-written, unparseable file; readers always
     see either the old or the new complete content.
+
+    `private=True` keeps the file owner-only (0600) instead of widening it to the umask: internal
+    state (series memory, checkpoints, episode context, reports) may carry subtitle text and lives
+    in the private data root, so it should not be world-readable. The share-friendly mode exists for
+    files a media server reads — but the final subtitle is written by `atomic_save`, not here.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -34,7 +39,9 @@ def atomic_write_text(path: str | Path, text: str) -> None:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(tmp, default_file_mode())
+        # mkstemp already creates the temp file as 0600; only widen it when not private.
+        if not private:
+            os.chmod(tmp, default_file_mode())
         os.replace(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):

@@ -89,14 +89,19 @@ class ProjectMemory:
         return cls(project_dir, memory, glossary, style_guide)
 
     def save(self) -> None:
-        atomic_write_text(self.project_dir / MEMORY_FILE, self.memory.model_dump_json(indent=2))
+        atomic_write_text(
+            self.project_dir / MEMORY_FILE, self.memory.model_dump_json(indent=2), private=True
+        )
         atomic_write_text(
             self.project_dir / GLOSSARY_FILE,
             GlossaryFile(entries=self.glossary).model_dump_json(indent=2),
+            private=True,
         )
         # Persist the (possibly default) style guide so it can be edited by hand.
         atomic_write_text(
-            self.project_dir / STYLE_GUIDE_FILE, self.style_guide.model_dump_json(indent=2)
+            self.project_dir / STYLE_GUIDE_FILE,
+            self.style_guide.model_dump_json(indent=2),
+            private=True,
         )
 
     def load_conflicts(self) -> list[dict]:
@@ -111,7 +116,7 @@ class ProjectMemory:
         except ValidationError as exc:
             raise ValueError(f"invalid conflict records: {exc}") from exc
         payload = ConflictsFile(conflicts=records).model_dump_json(indent=2)
-        atomic_write_text(self.project_dir / CONFLICTS_FILE, payload)
+        atomic_write_text(self.project_dir / CONFLICTS_FILE, payload, private=True)
 
     def append_conflicts(self, conflicts: list[dict]) -> None:
         if not conflicts:

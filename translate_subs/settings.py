@@ -92,7 +92,9 @@ def load_settings(project_dir: str | Path) -> ProjectSettings:
 
 
 def save_settings(project_dir: str | Path, settings: ProjectSettings) -> None:
-    atomic_write_text(Path(project_dir) / SETTINGS_FILE, settings.model_dump_json(indent=2))
+    atomic_write_text(
+        Path(project_dir) / SETTINGS_FILE, settings.model_dump_json(indent=2), private=True
+    )
 
 
 def resolve(value: str | None, field: str, settings: ProjectSettings) -> str | None:

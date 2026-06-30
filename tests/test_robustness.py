@@ -35,6 +35,28 @@ def test_project_memory_save_is_atomic(tmp_path):
     assert not list((tmp_path / "P").glob("*.tmp"))
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions only")
+def test_atomic_write_private_is_owner_only(tmp_path):
+    import stat
+
+    p = tmp_path / "secret.json"
+    atomic_write_text(p, "data", private=True)
+    assert stat.S_IMODE(p.stat().st_mode) == 0o600
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions only")
+def test_project_memory_files_are_owner_only(tmp_path):
+    # Series memory may contain subtitle text and lives in the private data root: 0600, not umask.
+    import stat
+
+    pm = ProjectMemory(tmp_path / "P")
+    pm.glossary["a"] = "b"
+    pm.save()
+    for name in ("memory.json", "glossary.json", "style_guide.json"):
+        mode = stat.S_IMODE((tmp_path / "P" / name).stat().st_mode)
+        assert mode == 0o600, f"{name} is {oct(mode)}, expected 0o600"
+
+
 # --- path traversal on --project -----------------------------------------------------
 
 
