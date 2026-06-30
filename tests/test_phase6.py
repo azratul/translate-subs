@@ -215,7 +215,7 @@ def test_output_name_uses_target_lang_code(tmp_path, monkeypatch):
     result = pipeline.translate_subtitle(
         source, provider="identity", target="fr-FR", interactive=False, project="P"
     )
-    assert result.output_path.name == "ep.fr.ass"
+    assert result.output_path.name == "ep.fr-fr.ass"  # region kept to avoid variant collisions
 
 
 def test_compact_memory_command(tmp_path, monkeypatch):
@@ -264,9 +264,11 @@ def test_default_rules_and_lang_code_are_target_driven():
     rules = cfg.default_rules("fr-FR")
     assert any("fr-FR" in r for r in rules)
     assert not any("Spanish" in r or "es-latam" in r for r in rules)
-    assert lang_code("es-latam") == "es"
-    assert lang_code("fr-FR") == "fr"
+    assert lang_code("es-latam") == "es-latam"
+    assert lang_code("fr-FR") == "fr-fr"
     assert lang_code("ja") == "ja"
+    # es-latam and es-ES no longer collapse to the same code.
+    assert lang_code("es-latam") != lang_code("es-ES")
 
 
 def test_review_prompt_uses_source_lang_label():

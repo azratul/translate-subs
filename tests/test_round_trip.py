@@ -93,6 +93,15 @@ def test_output_naming_strips_lang_suffix():
     # A dot that is not a language suffix is kept.
     assert output_path("/m/Episode 3.5.mkv").name == "Episode 3.5.es.ass"
     assert base_stem(Path("/m/Episode 3.5.mkv")) == "Episode 3.5"
+    # Multi-subtag language suffixes (region/script) are recognized and stripped, not just simple
+    # codes — so re-translating our own output doesn't double up the language suffix.
+    assert base_stem(Path("/m/ep.es-latam.srt")) == "ep"
+    assert base_stem(Path("/m/ep.zh-Hans.ass")) == "ep"
+    assert base_stem(Path("/m/ep.pt-BR.srt")) == "ep"
+    # Translating ep.es-latam.srt to French yields ep.fr-fr.ass, not ep.es-latam.fr-fr.ass.
+    assert output_path("/m/ep.es-latam.srt", lang="fr-fr").name == "ep.fr-fr.ass"
+    # A trailing dotted token that is not a language is left alone.
+    assert base_stem(Path("/m/My.Show.S01.mkv")) == "My.Show.S01"
     # --format srt switches the extension.
     assert output_path("/m/Matrix (1999) 4K.mp4", fmt="srt").name == "Matrix (1999) 4K.es.srt"
 

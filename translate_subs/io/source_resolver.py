@@ -8,7 +8,7 @@ from pathlib import Path
 
 from translate_subs.io.media_probe import MediaToolError, SubtitleTrack, probe_subtitle_tracks
 from translate_subs.io.track_extractor import extract_track
-from translate_subs.naming import ISO_639_1
+from translate_subs.naming import ISO_639_1, is_lang_suffix
 
 SUBTITLE_EXTS = {
     ".ass",
@@ -167,7 +167,7 @@ class ResolvedSource:
 def _sidecar_lang(sidecar: Path) -> str | None:
     """Normalized language tag of a sidecar (e.g. 'movie.en.srt' -> 'en'), or None."""
     last = sidecar.stem.rpartition(".")[2].lower()
-    return normalize_lang(last) if last in _LANG_TOKENS else None
+    return normalize_lang(last) if is_lang_suffix(last, _LANG_TOKENS) else None
 
 
 def _is_lang_fallback(requested: str | None, selected: str | None) -> bool:
@@ -195,7 +195,7 @@ def _find_sidecar(media: Path, lang: str | None = None) -> Path | None:
             bare = bare or candidate
             continue
         base, _, last = cand_stem.rpartition(".")
-        if base == stem and last.lower() in _LANG_TOKENS:
+        if base == stem and is_lang_suffix(last, _LANG_TOKENS):
             if want is not None and normalize_lang(last) == want:
                 lang_matches.append(candidate)
             else:

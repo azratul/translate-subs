@@ -136,6 +136,19 @@ def test_find_sidecar_detects_arbitrary_iso_language(tmp_path):
     assert _find_sidecar(tmp_path / "ep.mkv").name == "ep.ru.srt"
 
 
+def test_find_sidecar_detects_multi_subtag_language(tmp_path):
+    # A regional sidecar (movie.es-latam.srt) must be recognized, not just bare codes.
+    from translate_subs.io.source_resolver import _sidecar_lang
+
+    (tmp_path / "movie.mkv").write_bytes(b"")
+    (tmp_path / "movie.es-latam.srt").write_text("x")
+    found = _find_sidecar(tmp_path / "movie.mkv", "es")
+    assert found is not None and found.name == "movie.es-latam.srt"
+    assert _sidecar_lang(tmp_path / "movie.es-latam.srt") == "es"
+    assert _sidecar_lang(tmp_path / "movie.pt-BR.srt") == "pt"
+    assert _sidecar_lang(tmp_path / "movie.notlang.srt") is None
+
+
 # --- ffmpeg/ffprobe preflight --------------------------------------------------------
 
 
@@ -221,8 +234,10 @@ def test_translate_force_required_to_overwrite(tmp_path, monkeypatch):
 def test_lang_code_strips_path_characters():
     from translate_subs.naming import lang_code
 
-    assert lang_code("es-latam") == "es"
-    assert lang_code("pt-BR") == "pt"
+    # Variants keep their region/script so they don't collide on one filename.
+    assert lang_code("es-latam") == "es-latam"
+    assert lang_code("pt-BR") == "pt-br"
+    assert lang_code("es") == "es"
     # A hostile target can't inject path components into `<base>.<lang>.<fmt>`.
     assert "/" not in lang_code("../../tmp/x")
     assert lang_code("../../tmp/x") == "tmpx"
@@ -1038,7 +1053,7 @@ def _one_line_srt(path):
 def test_discover_inputs_filters_pattern_and_skips_outputs(tmp_path):
     _one_line_srt(tmp_path / "ep01.en.srt")
     _one_line_srt(tmp_path / "ep02.en.srt")
-    _one_line_srt(tmp_path / "ep01.es.srt")  # a previous output — must not be picked up
+    _one_line_srt(tmp_path / "ep01.es-latam.srt")  # a previous output — must not be picked up
     (tmp_path / "note.txt").write_text("x", encoding="utf-8")
 
     found = pipeline.discover_inputs(tmp_path, globs=("*.srt",), target="es-latam")
@@ -1071,7 +1086,7 @@ def test_batch_translate_skips_done_and_continues_past_failures(tmp_path, monkey
     for n in ("ep01.en.srt", "ep02.en.srt", "ep03.en.srt"):
         _one_line_srt(tmp_path / n)
     # Pre-create ep02's output so it is skipped without --force.
-    _one_line_srt(tmp_path / "ep02.es.srt")
+    _one_line_srt(tmp_path / "ep02.es-latam.srt")
 
     real = pipeline.translate_subtitle
 
@@ -1126,8 +1141,8 @@ def test_batch_out_dir_mirrors_subfolders_no_collision(tmp_path, monkeypatch):
 
     assert result.n_translated == 2 and result.n_skipped == 0
     # Each episode lands under its own mirrored season directory, not one shared filename.
-    assert (out_dir / "Season 1" / "Episode 01.es.srt").exists()
-    assert (out_dir / "Season 2" / "Episode 01.es.srt").exists()
+    assert (out_dir / "Season 1" / "Episode 01.es-latam.srt").exists()
+    assert (out_dir / "Season 2" / "Episode 01.es-latam.srt").exists()
 
 
 def test_batch_cli_exits_nonzero_on_failure(tmp_path, monkeypatch):

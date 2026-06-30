@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from pathlib import Path
 
 # The full ISO 639-1 two-letter set, so a sidecar/output suffix in *any* language (e.g.
@@ -75,33 +76,65 @@ def validate_target(target: str) -> str:
 
 
 def lang_code(target: str) -> str:
-    """Short filename code for a target like 'es-latam' -> 'es', 'fr-FR' -> 'fr'.
+    """Filename code for a target: bare language when it has no region/variant, else the full tag.
 
-    Alphanumerics only: even a hostile target (path separators, `..`) can never inject path
-    components into the output filename `<base>.<lang>.<fmt>`.
+    'es' -> 'es', but 'es-latam' -> 'es-latam' and 'es-es' -> 'es-es', 'zh-hans' -> 'zh-hans'. Two
+    variants of one language therefore produce *different* output filenames (`<base>.es-latam.ass`
+    vs `<base>.es-es.ass`) instead of colliding on `<base>.es.ass`. Each subtag is reduced to its
+    alphanumerics and rejoined with hyphens, so even a hostile target (path separators, `..`) can
+    never inject path components into `<base>.<lang>.<fmt>`.
     """
-    first = target.strip().lower().replace("_", "-").split("-", 1)[0]
-    code = "".join(ch for ch in first if ch.isalnum())
-    return code or "out"
+    subtags = (target.strip().lower().replace("_", "-")).split("-")
+    cleaned = ["".join(ch for ch in sub if ch.isalnum()) for sub in subtags]
+    cleaned = [sub for sub in cleaned if sub]
+    return "-".join(cleaned) or "out"
+
+
+# Providers whose default model we control here (so a report can name it instead of "(default)").
+# The agent CLIs and API routers pick their own default, which we can't read out, so we say so.
+_KNOWN_DEFAULT_MODELS = {"claude": "claude-opus-4-8"}
+
+
+def effective_model(provider: str, model: str | None) -> str:
+    """The model string to record in a report: the explicit one, or the resolved default."""
+    if model:
+        return model
+    return _KNOWN_DEFAULT_MODELS.get(provider, f"{provider} default")
 
 
 def target_dirname(target: str) -> str:
     """Filesystem-safe, case-normalized directory name for a *full* target.
 
-    Unlike `lang_code` (which collapses both 'es-latam' and 'es-ES' to 'es'), this keeps the
-    region so different variants get separate memory subtrees and can't contaminate each other.
-    Used only for the on-disk memory layout; the output *filename* still uses `lang_code`.
+    Like `lang_code`, this keeps the region/script of a variant ('es-latam', 'es-es', 'zh-hans')
+    so different variants get separate memory subtrees and can't contaminate each other. It differs
+    from `lang_code` only in that it keeps no record of being a *filename* code: it is used solely
+    for the on-disk memory layout, while the output *filename* uses `lang_code`.
     """
     name = target.strip().lower().replace("_", "-")
     cleaned = "".join(ch for ch in name if ch.isalnum() or ch == "-").strip("-")
     return cleaned or "out"
 
 
+def is_lang_suffix(token: str, known: Collection[str]) -> bool:
+    """Whether `token` is a filename language suffix given the caller's `known` token set.
+
+    Recognizes both a simple token (`en`, `spa`, `latam`) and a BCP-47-style tag whose **primary**
+    subtag is known (`es-latam`, `es-ES`, `zh-Hans`, `pt-BR`). Centralizing this keeps naming,
+    sidecar resolution and batch discovery in agreement about what counts as a language suffix —
+    otherwise an `es-latam` output is produced but not recognized when read back.
+    """
+    token = token.lower()
+    if token in known:
+        return True
+    primary, sep, _rest = token.partition("-")
+    return bool(sep) and primary in known
+
+
 def base_stem(origin: Path) -> str:
     """Original name without extension and without a trailing language suffix."""
     stem = origin.stem
     base, _, last = stem.rpartition(".")
-    if base and last.lower() in _LANG_TOKENS:
+    if base and is_lang_suffix(last, _LANG_TOKENS):
         return base
     return stem
 
