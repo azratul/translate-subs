@@ -143,6 +143,41 @@ def test_flatten_overlaps_splits_partial_overlap():
     ]
 
 
+def test_flatten_overlaps_preserves_whole_line_italic_for_srt(tmp_path):
+    # SRT can render <i>/<b>/<u>; a whole-line italic cue (narration, song) must keep its emphasis
+    # through flattening instead of being reduced to plain text.
+    subs = pysubs2.SSAFile()
+    subs.styles["Default"] = pysubs2.SSAStyle(alignment=2)
+    subs.events.append(pysubs2.SSAEvent(start=0, end=2000, text=r"{\i1}I am whispering.{\i0}"))
+    subs.events.append(pysubs2.SSAEvent(start=2500, end=4000, text="Normal line."))
+
+    flatten_overlaps(subs)
+    out = tmp_path / "out.srt"
+    document.save(subs, out, fmt="srt")
+
+    text = out.read_text("utf-8")
+    assert "<i>I am whispering.</i>" in text
+    assert "Normal line." in text and "<i>Normal" not in text
+
+
+def test_flatten_overlaps_respects_final_style_state(tmp_path):
+    # {\i1}{\i0} toggles italic on then off: the final state is plain, so the line must NOT be
+    # italicized (a naive substring check for "\i1" would wrongly emphasize it).
+    subs = pysubs2.SSAFile()
+    subs.styles["Default"] = pysubs2.SSAStyle(alignment=2)
+    subs.events.append(pysubs2.SSAEvent(start=0, end=2000, text=r"{\i1}{\i0}Normal text."))
+    subs.events.append(pysubs2.SSAEvent(start=2500, end=4000, text=r"{\u1}Still underlined."))
+
+    flatten_overlaps(subs)
+    out = tmp_path / "out.srt"
+    document.save(subs, out, fmt="srt")
+    text = out.read_text("utf-8")
+
+    assert "<i>" not in text  # toggled off → no italic
+    assert "Normal text." in text
+    assert "<u>Still underlined.</u>" in text  # left on → underline preserved
+
+
 def test_extractor_captures_whole_line_leading_tags(sample_ass):
     units = extract_units(sample_ass)
     # Leading italic and \pos blocks are whole-line and captured; the bare sign has none.

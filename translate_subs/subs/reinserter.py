@@ -23,6 +23,35 @@ from translate_subs.subs.extractor import leading_tags
 # separately, so stripping these from the model text never drops real positioning.
 _INJECTED_TAG_RE = re.compile(r"\{[^{}]*\\[^{}]*\}")
 
+# The only inline styling .srt can represent (pysubs2 renders {\i1}..{\i0} as <i>..</i>, etc.).
+# When flattening for .srt we preserve a cue's whole-line italic/bold/underline so narration,
+# songs and flashbacks keep their emphasis; positioning/colour tags are still dropped.
+_SRT_STYLE_TAGS = ("i", "b", "u")
+# An i/b/u toggle inside an override block, e.g. \i1, \b0, \u1.
+_STYLE_TOGGLE_RE = re.compile(r"\\([ibu])([01])")
+
+
+def _final_style_state(lead: str) -> list[str]:
+    """The i/b/u tags left *on* after applying every toggle in `lead`, in order.
+
+    A block like `{\\i1}{\\i0}` toggles italic on then off, so the final state is plain — checking
+    for the substring `\\i1` alone would wrongly italicize it. The last toggle for each tag wins.
+    """
+    state: dict[str, bool] = {}
+    for tag, value in _STYLE_TOGGLE_RE.findall(lead):
+        state[tag] = value == "1"
+    return [tag for tag in _SRT_STYLE_TAGS if state.get(tag)]
+
+
+def _srt_styled_text(event: pysubs2.SSAEvent) -> str:
+    """The cue's visible text wrapped in whatever whole-line i/b/u emphasis it carries."""
+    opened = _final_style_state(leading_tags(event))
+    if not opened:
+        return event.plaintext
+    prefix = "{" + "".join(f"\\{tag}1" for tag in opened) + "}"
+    suffix = "{" + "".join(f"\\{tag}0" for tag in reversed(opened)) + "}"
+    return f"{prefix}{event.plaintext}{suffix}"
+
 
 def sanitize_model_text(text: str) -> str:
     """Drop ASS override blocks a model may have returned inside the visible text."""
@@ -103,7 +132,7 @@ def flatten_overlaps(subs: pysubs2.SSAFile) -> None:
         if not active:
             continue
         active.sort(key=lambda e: (_alignment_rank(subs, e), e.start))
-        text = "\n".join(e.plaintext for e in active)
+        text = "\n".join(_srt_styled_text(e) for e in active)
         if segments and segments[-1][1] == start and segments[-1][2] == text:
             prev_start, _, prev_text = segments[-1]
             segments[-1] = (prev_start, end, prev_text)
