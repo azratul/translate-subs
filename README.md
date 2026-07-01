@@ -558,13 +558,18 @@ server send nothing externally). On disk the tool stores:
 - **Per-series memory** under `$XDG_DATA_HOME/llm-subs/projects/<series>/<target>/`: glossary,
   characters (with gender/register), style guide, conflicts, per-episode context, block
   checkpoints (which contain translated text), `settings.json`, and the `review`/`readability`
-  reports. These are written **owner-only (0600)** since they may contain subtitle text.
+  reports. These are written **owner-only (0600)**, in **owner-only (0700) directories**, since
+  they may contain subtitle text.
 - **Extracted subtitle tracks** under `$XDG_CACHE_HOME/llm-subs/work/`: only a demux cache so a
-  rerun skips re-extraction. Clear it any time with **`llm-subs purge-cache`** (memory and reports
-  are not touched).
+  rerun skips re-extraction, kept in an owner-only (0700) directory. Clear it any time with
+  **`llm-subs purge-cache`** (memory and reports are not touched).
 
 The **final translated subtitle** is written with your normal umask (not 0600) so a media server
 running under another account (Jellyfin/Plex) can read it.
+
+Directories left group/other-readable by an **older release** are tightened on the next write.
+Run **`llm-subs doctor`** to audit them: it flags any state or cache path still readable by other
+users and prints the `chmod` to fix leftovers it can't repair automatically.
 
 ## Scope, non-goals and limitations
 

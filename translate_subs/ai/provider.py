@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from translate_subs.ai.job_protocol import JobLine, TranslationJobIn, TranslationJobOut
-from translate_subs.fsutil import atomic_write_text
+from translate_subs.fsutil import atomic_write_text, ensure_private_dir
 
 TRANSLATION_PROMPT_VERSION = 1
 _PERMANENT_BACKEND_MARKERS = (
@@ -148,7 +148,7 @@ class FileHandoffProvider(TranslationProvider):
         self.jobs_dir = Path(jobs_dir)
 
     def translate(self, jobs: list[TranslationJobIn]) -> dict[str, str]:
-        self.jobs_dir.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self.jobs_dir)
         pending: list[str] = []
         result: dict[str, str] = {}
 

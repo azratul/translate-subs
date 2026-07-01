@@ -57,6 +57,56 @@ def test_project_memory_files_are_owner_only(tmp_path):
         assert mode == 0o600, f"{name} is {oct(mode)}, expected 0o600"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions only")
+def test_atomic_write_private_tightens_containing_dir(tmp_path):
+    # A private file's directory holds subtitle-derived state, so it must not be traversable
+    # by other users; writing one into a fresh directory tightens that directory to 0700.
+    import stat
+
+    p = tmp_path / "state" / "episode" / "context.json"
+    atomic_write_text(p, "data", private=True)
+    assert stat.S_IMODE(p.parent.stat().st_mode) == 0o700
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions only")
+def test_ensure_private_dir_tightens_created_dirs_only(tmp_path):
+    import stat
+
+    from translate_subs.fsutil import ensure_private_dir
+
+    root = tmp_path / "preexisting"
+    root.mkdir(mode=0o755)
+    ensure_private_dir(root / "a" / "b")
+    # The pre-existing ancestor keeps its mode; every directory this call created is owner-only.
+    assert stat.S_IMODE(root.stat().st_mode) == 0o755
+    assert stat.S_IMODE((root / "a").stat().st_mode) == 0o700
+    assert stat.S_IMODE((root / "a" / "b").stat().st_mode) == 0o700
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions only")
+def test_doctor_flags_group_readable_state(tmp_path, monkeypatch):
+    from translate_subs import diagnostics
+
+    projects = tmp_path / "projects"
+    work = tmp_path / "cache"
+    # The real flow tightens these roots (via `_writable_dir`) before the audit runs.
+    projects.mkdir(mode=0o700)
+    work.mkdir(mode=0o700)
+    monkeypatch.setattr(diagnostics.config, "PROJECTS_DIR", projects)
+    monkeypatch.setattr(diagnostics.config, "WORK_DIR", work)
+
+    clean = diagnostics._permissions_check()
+    assert clean.status == "ok"
+
+    legacy = projects / "Serie" / "es-latam" / "memory.json"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("subtitle text", encoding="utf-8")
+    legacy.chmod(0o644)  # a file written by an older release
+    flagged = diagnostics._permissions_check()
+    assert flagged.status == "warn"
+    assert str(legacy) in flagged.detail
+
+
 # --- path traversal on --project -----------------------------------------------------
 
 

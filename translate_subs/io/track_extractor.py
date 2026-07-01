@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from translate_subs.fsutil import ensure_private_dir
 from translate_subs.io.media_probe import (
     EXTRACT_TIMEOUT,
     MediaToolError,
@@ -36,7 +37,8 @@ def extract_track(media_path: str | Path, track: SubtitleTrack, dest_dir: str | 
     ensure_binary("ffmpeg")
     media_path = Path(media_path)
     dest_dir = Path(dest_dir)
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    # The extracted track is subtitle text; keep its cache directory owner-only.
+    ensure_private_dir(dest_dir)
     key = _cache_key(media_path, track)
     dest = dest_dir / f"{media_path.stem}.{key}.track{track.rel_index}{track.extract_ext}"
     if dest.exists():

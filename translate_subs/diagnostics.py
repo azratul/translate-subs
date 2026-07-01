@@ -1,9 +1,10 @@
 """Environment diagnostics for the `doctor` command.
 
-Each check returns a `Check` (name, status, detail). Nothing here mutates state or
-calls an LLM; it only inspects what the tool needs to run: the external media tools,
-the writable data/cache directories, and — when a provider is named — that provider's
-backend (a CLI on PATH, a reachable Ollama server, or the optional litellm package).
+Each check returns a `Check` (name, status, detail). It does not call an LLM; beyond ensuring
+its own data/cache directories exist (owner-only), it only inspects what the tool needs to run:
+the external media tools, the writable data/cache directories, whether any private state is
+group/other-readable, and — when a provider is named — that provider's backend (a CLI on PATH,
+a reachable Ollama server, or the optional litellm package).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Literal
 
 from translate_subs import config
+from translate_subs.fsutil import ensure_private_dir
 
 Status = Literal["ok", "warn", "fail"]
 
@@ -61,7 +63,9 @@ def _media_checks() -> list[Check]:
 
 def _writable_dir(label: str, path: Path) -> Check:
     try:
-        path.mkdir(parents=True, exist_ok=True)
+        # These are all private roots (state + cache); create them owner-only so a fresh install
+        # or a doctor-first run doesn't leave the roots group/other-traversable.
+        ensure_private_dir(path)
         probe = path / ".doctor-write-test"
         probe.write_text("", encoding="utf-8")
         probe.unlink()
@@ -70,11 +74,43 @@ def _writable_dir(label: str, path: Path) -> Check:
     return Check(label, "ok", str(path))
 
 
+def _loose_entries(root: Path) -> list[Path]:
+    """Paths under `root` (including `root`) still readable/traversable by group or other."""
+    loose: list[Path] = []
+    for path in (root, *root.rglob("*")) if root.exists() else ():
+        try:
+            mode = path.lstat().st_mode
+        except OSError:
+            continue
+        if mode & 0o077:
+            loose.append(path)
+    return loose
+
+
+def _permissions_check() -> Check:
+    # Audit only the private subtrees: series memory/state (PROJECTS_DIR) and the extracted-track
+    # cache (WORK_DIR), both of which can hold subtitle text. The sandbox output dir is deliberately
+    # world-readable (a media server reads the final subtitle), so it is not audited here.
+    loose = _loose_entries(config.PROJECTS_DIR) + _loose_entries(config.WORK_DIR)
+    if not loose:
+        return Check("state permissions", "ok", "state and cache are owner-only")
+    sample = ", ".join(str(p) for p in loose[:3])
+    more = f" (+{len(loose) - 3} more)" if len(loose) > 3 else ""
+    return Check(
+        "state permissions",
+        "warn",
+        f"{len(loose)} state/cache entries are group/other-accessible and may carry subtitle "
+        f"text. Current versions write these owner-only; files from an older release keep their "
+        f"old mode. Fix: chmod -R go= {config.PROJECTS_DIR} {config.WORK_DIR}. e.g. {sample}{more}",
+    )
+
+
 def _path_checks() -> list[Check]:
     return [
         _writable_dir("data dir", config.DATA_DIR),
         _writable_dir("projects dir", config.PROJECTS_DIR),
         _writable_dir("cache dir", config.WORK_DIR),
+        _permissions_check(),
     ]
 
 

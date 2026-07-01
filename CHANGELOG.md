@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+- State and cache **directories** are now created owner-only (0700), matching the 0600 already used
+  for the files inside them. Series memory, episode state and the extracted-track cache can carry
+  subtitle text, so their directories must not be traversable by other users. Directories left 0755
+  by an older release are repaired on the next write (and on `doctor`).
+- `doctor` now audits state permissions: it reports any file or directory under the projects and
+  cache roots that is still group/other-accessible (e.g. files written 0644 by an older release),
+  with the `chmod` command to fix them. It is a warning, never a hard failure.
+
+### Changed
+- Widen `rich` support to include the 15.x series (dependency cap raised to `<16`).
+
 ## [0.5.0] - 2026-07-01
 
 ### Added
