@@ -3,7 +3,9 @@
 When `translate` writes an output it records, in the per-episode state directory, the source
 fingerprint and the settings that produced it. On a later `batch` run that finds the output already
 present, the stored manifest lets it tell an up-to-date output (skip) from one whose source,
-provider/model or prompt changed since (report as *stale*, never silently overwritten).
+provider/model or prompt changed since (report as *stale*, never silently overwritten). The source
+fingerprint (`output_source_digest`) covers timing and style, not just text, so a re-timed or
+re-styled source — which leaves the existing output desynchronised — is flagged stale too.
 
 The recorded model is the value the user/settings supplied, so an explicit `--model` change is
 detected; relying on a provider's built-in default and that default later changing is not (the

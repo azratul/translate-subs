@@ -38,6 +38,24 @@ def source_digest(units: list[TranslatableUnit]) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def output_source_digest(units: list[TranslatableUnit]) -> str:
+    """Fingerprint of everything a source bakes into the rendered output, for the output manifest.
+
+    Broader than `source_digest`: it also covers timing, style and the whole-line leading override
+    block. A re-timed or re-styled source doesn't change the *translation* (so it must not flag the
+    context sheet stale), but it does make the existing output no longer match the source — the
+    subtitle would be desynchronised while still looking up to date. Including timing/style here
+    lets `batch` flag such an output as stale so `--force` can re-render it (reusing the cached
+    translations, which are keyed on text/context, not timing).
+    """
+    blob = "\n".join(
+        f"{unit.id}\t{unit.start}\t{unit.end}\t{unit.style}\t{unit.lead_tags}\t"
+        f"{unit.speaker or ''}\t{unit.text}"
+        for unit in units
+    )
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
 CONTEXT_SCHEMA_VERSION: Literal[1] = 1
 
 

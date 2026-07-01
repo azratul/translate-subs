@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from translate_subs import config
-from translate_subs.ai.analysis import EpisodeContext, source_digest
+from translate_subs.ai.analysis import EpisodeContext, output_source_digest, source_digest
 from translate_subs.ai.blocks import build_jobs
 from translate_subs.ai.checkpoint import (
     CHECKPOINT_FILE,
@@ -143,7 +143,7 @@ def translate_subtitle(
         )
     project_name, episode_name = project_episode(source, project)
     out_manifest = OutputManifest(
-        source_hash=source_digest(units),
+        source_hash=output_source_digest(units),
         target=target,
         provider=provider,
         model=model or "",

@@ -218,9 +218,9 @@ def test_output_name_uses_target_lang_code(tmp_path, monkeypatch):
     assert result.output_path.name == "ep.fr-fr.ass"  # region kept to avoid variant collisions
 
 
-def _srt_with(path, text):
+def _srt_with(path, text, *, start=0, end=2000):
     subs = pysubs2.SSAFile()
-    subs.events.append(pysubs2.SSAEvent(start=0, end=2000, text=text))
+    subs.events.append(pysubs2.SSAEvent(start=start, end=end, text=text))
     subs.save(str(path), format_="srt")
 
 
@@ -275,6 +275,21 @@ def test_changed_model_reports_stale(tmp_path, monkeypatch):
 
     with pytest.raises(StaleOutputError, match="provider/model"):
         pipeline.translate_subtitle(source, model="some-model", **kw)
+
+
+def test_changed_timing_reports_stale(tmp_path, monkeypatch):
+    from translate_subs.workflows.models import StaleOutputError
+
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    source = tmp_path / "ep.en.srt"
+    _srt_with(source, "Hello.", start=0, end=2000)
+    kw = dict(provider="identity", interactive=False, fmt="srt", project="P")
+    pipeline.translate_subtitle(source, **kw)
+
+    # Same text, different timing: the translation is unchanged but the output is now desynced.
+    _srt_with(source, "Hello.", start=5000, end=7000)
+    with pytest.raises(StaleOutputError, match="source"):
+        pipeline.translate_subtitle(source, **kw)
 
 
 def test_changed_reasoning_reports_stale(tmp_path, monkeypatch):

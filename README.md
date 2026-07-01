@@ -579,7 +579,7 @@ maintenance cost once other people's production systems depend on this tool, whi
 **not** the goal.
 
 Concretely, the recurring "to reach 100/100" asks — an automated linguistic-quality benchmark,
-heavyweight supply-chain tooling (SBOM, signing, provenance, CodeQL, Dependabot), multi-process
+heavyweight supply-chain tooling (SBOM, signing, provenance, CodeQL), multi-process
 locking, and full agent sandboxing — are excluded for the same underlying reason:
 
 - **No third party depends on this in production.** Locking solves multi-writer races you don't
@@ -602,11 +602,11 @@ specific items follow.
 ### Out of scope by design
 
 - **Heavyweight release / supply-chain tooling.** The repo ships a `CHANGELOG`, `CONTRIBUTING`,
-  a `SECURITY` threat model, a CI that builds and smoke-tests the wheel, and GitHub Actions
-  pinned by commit SHA. It does **not** add SBOM, provenance attestation, artifact signing,
-  CodeQL, Dependabot/Renovate or fully automated SemVer release pipelines — that machinery is
-  maintenance overhead with no benefit for a community CLI distributed via a tagged release and
-  `pipx install git+…`.
+  a `SECURITY` threat model, a CI that builds and smoke-tests the wheel, GitHub Actions pinned by
+  commit SHA, and a Dependabot config that keeps those dependencies and Actions current. It does
+  **not** add SBOM, provenance attestation, artifact signing, CodeQL or fully automated SemVer
+  release pipelines — that machinery is maintenance overhead with no benefit for a community CLI
+  distributed via a tagged release and `pipx install git+…`.
 - **An automated translation-quality benchmark / "golden" corpus.** This is repeatedly raised as
   the headline gap, so to be explicit: there is **no** golden-corpus, blind human-eval harness or
   per-provider/prompt linguistic-regression suite, and there won't be — a serious one is a
@@ -631,11 +631,15 @@ specific items follow.
   tools allowed, so the deny-all config is what actually stops a crafted cue from reading and
   exfiltrating files; none is ever given `--dangerously-skip-permissions`.
   On top of those flags, each agent CLI is launched from an empty throwaway working directory, so a
-  crafted subtitle can't steer it toward files in your real cwd. Caveat: `antigravity` replaced the
-  Gemini CLI and is agentic — its `--sandbox` only restricts the terminal (no read-only/no-tools
-  mode like the old `--approval-mode plan`), so the throwaway cwd is its primary containment.
-  Full OS isolation (containers/seccomp) is still out of scope; the strongest mitigation — use a
-  local backend (`ollama`) for sensitive subtitles — is documented in [SECURITY.md](SECURITY.md).
+  crafted subtitle can't steer it toward files in your real cwd. Be honest about what each flag
+  buys: `codex --sandbox read-only` blocks writes, exec and network but still permits *reads*, so
+  the throwaway cwd (and the denied network, which blocks exfiltration) is what limits it, not the
+  read-only flag alone. `antigravity` is the weakest — it replaced the Gemini CLI and is agentic;
+  its `--sandbox` only restricts the terminal (no read-only/no-tools mode like the old
+  `--approval-mode plan`), so the throwaway cwd is its *sole* containment. Prefer `claude`/`codex`
+  over `antigravity` for material from an unknown source. Full OS isolation (containers/seccomp) is
+  still out of scope; the strongest mitigation — use a local backend (`ollama`) for sensitive
+  subtitles — is documented in [SECURITY.md](SECURITY.md).
 - **Token-aware block sizing and map-reduce analysis.** Blocks are sized by line count. Subtitle
   lines are inherently short (it's a subtitle), so a fixed line budget rarely strains a model's
   context; a token-budget scheduler and hierarchical analysis for very long inputs are not

@@ -14,8 +14,9 @@ permissions:
 jobs:
   test:
     # Multi-OS to back the "OS Independent" classifier: full Python matrix on Linux, plus a
-    # macOS and Windows job. Tests don't shell out to ffmpeg (it's mocked), so the binary is
-    # only installed on Linux for the realistic path.
+    # macOS and Windows job. Most tests fake the media layer, but test_ffmpeg_integration.py muxes
+    # a real .mkv and runs whenever ffmpeg is present (skipped otherwise), so the binary is
+    # installed on Linux to exercise that real extraction path.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

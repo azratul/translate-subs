@@ -118,8 +118,10 @@ def flatten_overlaps(subs: pysubs2.SSAFile) -> None:
 
     boundaries = sorted({e.start for e in timed} | {e.end for e in timed})
     # Sweep line: sort once by start time; advance a pointer to add events as their start
-    # time is reached. Each event is added once and removed once → O(n log n) total instead
-    # of the O(n²) scan that checked every event against every interval boundary.
+    # time is reached, so active-set maintenance is O(n log n) rather than the O(n²) scan that
+    # checked every event against every boundary. Building the stacked text per interval is still
+    # bounded by output size, so a pathologically dense file (many cues over one range) is
+    # quadratic in the worst case — acceptable for real subtitles (see CONTRIBUTING).
     by_start = sorted(timed, key=lambda e: e.start)
     ptr = 0
     active: list[pysubs2.SSAEvent] = []

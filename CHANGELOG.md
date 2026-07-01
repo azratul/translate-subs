@@ -35,6 +35,20 @@ All notable changes to this project are documented here. The format follows
   keys (it validates the raw model reply), and legacy files without the field load as version 1.
 
 ### Fixed
+- Stale-output detection now catches **timing and style** changes, not just text. The manifest's
+  source fingerprint (`output_source_digest`) covers each cue's timing, style and leading override
+  block, so a re-timed or re-restyled source — which leaves the existing output desynchronised while
+  it still looked up to date — is flagged stale; `--force` then re-renders it, reusing the cached
+  translations (keyed on text/context, not timing). The context-staleness check is unchanged
+  (content only), since re-timing doesn't invalidate the character/glossary analysis.
+- Corrected documentation contradictions: the README no longer lists Dependabot as out of scope (it
+  is now configured), the CI comment no longer claims ffmpeg is fully mocked (a real integration
+  test runs when ffmpeg is present), and the `flatten_overlaps` comment no longer overstates its
+  complexity as O(n log n) *total* (active-set upkeep is O(n log n); stacking text is bounded by
+  output size, quadratic in the pathological dense case, as `CONTRIBUTING.md` already noted).
+- Documented honestly that `codex --sandbox read-only` still permits file *reads* (the throwaway
+  cwd and denied network are the real limits) and that `antigravity` is the weakest backend, not
+  recommended for material from an unknown source.
 - The Ollama host is now validated: an explicit scheme is accepted only when it is `http`/`https`
   (`file://`, `ftp://`, etc. are rejected with a clear error), while a bare `host:port` still gets
   `http://`. Previously any string starting with `http` was passed through and other schemes were
