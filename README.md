@@ -618,8 +618,10 @@ specific items follow.
   gate tends to incentivise filler tests that just exercise framework glue code — testing whether
   Typer prints the right error when a file is missing, for instance. Effort goes to tests that
   exercise real deterministic behaviour (extraction, reinsertion) instead of chasing a number.
-- **Fuzz / property-based testing of ASS/SRT.** Parsing is delegated to `pysubs2`; the project
-  tests its own extraction/reinsertion logic, not the parser's robustness to malformed input.
+- **Fuzzing the parser against malformed ASS/SRT.** Parsing is delegated to `pysubs2`, so the
+  project does not fuzz it for robustness to broken input. It *does* property-test its own
+  extraction/reinsertion invariants (`tests/test_properties.py`) against generated well-formed
+  events — that deterministic core is what it owns and must never corrupt.
 - **OS-level sandboxing of agent CLIs.** Each agent CLI is invoked with its own built-in
   restriction so untrusted subtitle text can't talk it into touching your files: `codex` runs
   `--sandbox read-only`, `claude` denies every filesystem/exec/network/subagent tool and ignores

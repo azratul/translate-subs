@@ -277,6 +277,19 @@ def test_changed_model_reports_stale(tmp_path, monkeypatch):
         pipeline.translate_subtitle(source, model="some-model", **kw)
 
 
+def test_changed_reasoning_reports_stale(tmp_path, monkeypatch):
+    from translate_subs.workflows.models import StaleOutputError
+
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    source = tmp_path / "ep.en.srt"
+    _srt_with(source, "Hello.")
+    kw = dict(provider="identity", interactive=False, fmt="srt", project="P")
+    pipeline.translate_subtitle(source, **kw)  # reasoning unset -> recorded as ""
+
+    with pytest.raises(StaleOutputError, match="reasoning"):
+        pipeline.translate_subtitle(source, reasoning="high", **kw)
+
+
 def test_legacy_output_without_manifest_reports_output_exists(tmp_path, monkeypatch):
     from translate_subs.workflows.models import OutputExistsError
 

@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # Python dependencies (pyproject.toml + uv.lock). Weekly, grouped so a batch of routine bumps
+  # arrives as one reviewable PR instead of many.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions used by the workflows. Keeping these current also picks up security fixes in
+  # the CI toolchain; pinning by SHA is compatible with Dependabot's updates.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

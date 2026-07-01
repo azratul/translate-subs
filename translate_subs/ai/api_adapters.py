@@ -76,8 +76,24 @@ def _post_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any
 
 
 def _normalize_host(host: str) -> str:
+    """Normalize an Ollama host to an http(s) base URL.
+
+    A bare `host:port` (the common `localhost:11434`) gets an `http://` scheme. An explicit scheme
+    is accepted only when it is http/https — anything else (`file://`, `ftp://`, a typo like
+    `http://`) is rejected rather than silently turned into a request. `urlparse` is unusable here
+    because it reads the port of a schemeless `localhost:11434` as the scheme, so the split is
+    explicit.
+    """
     host = host.rstrip("/")
-    return host if host.startswith("http") else f"http://{host}"
+    if "://" in host:
+        scheme = host.split("://", 1)[0].lower()
+        if scheme not in ("http", "https"):
+            raise ProviderError(
+                f"Ollama host must use http:// or https://, got {scheme}://.",
+                retryable=False,
+            )
+        return host
+    return f"http://{host}"
 
 
 @dataclass

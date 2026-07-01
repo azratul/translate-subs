@@ -77,3 +77,28 @@ def test_flatten_overlaps_leaves_no_timed_overlap(subs: pysubs2.SSAFile) -> None
     )
     for earlier, later in zip(timed, timed[1:], strict=False):
         assert later.start >= earlier.end
+
+
+@settings(max_examples=300)
+@given(_subs(), st.integers(min_value=0, max_value=110_000))
+def test_flatten_overlaps_preserves_active_text_at_each_instant(
+    subs: pysubs2.SSAFile, instant: int
+) -> None:
+    """Stronger than no-overlap: at any instant the visible lines are exactly those active before.
+
+    `flatten_overlaps` may not add, drop or move text in time — only re-segment it. So the set of
+    visible lines covering an instant must equal the set of source cues active there.
+    """
+    timed = [event for event in subs.events if event.end > event.start]
+    expected = {event.plaintext for event in timed if event.start <= instant < event.end}
+    flatten_overlaps(subs)
+    covering = [
+        event
+        for event in subs.events
+        if event.end > event.start and event.start <= instant < event.end
+    ]
+    if not expected:
+        assert covering == []
+    else:
+        assert len(covering) == 1
+        assert set(covering[0].plaintext.split("\n")) == expected

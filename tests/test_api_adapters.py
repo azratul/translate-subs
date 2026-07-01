@@ -55,6 +55,22 @@ def test_ollama_host_from_env_gets_scheme(monkeypatch):
     assert captured["url"] == "http://remote:1234/api/chat"
 
 
+def test_ollama_host_keeps_explicit_https(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        api_adapters,
+        "_post_json",
+        lambda url, payload, timeout: captured.update(url=url) or {"message": {"content": "x"}},
+    )
+    OllamaRunner(model="m", host="https://ollama.example:443")("P")
+    assert captured["url"] == "https://ollama.example:443/api/chat"
+
+
+def test_ollama_rejects_non_http_scheme():
+    with pytest.raises(ProviderError, match="http:// or https://"):
+        OllamaRunner(model="m", host="file:///etc/passwd")("P")
+
+
 def test_ollama_requires_model():
     with pytest.raises(ProviderError, match="requires --model"):
         OllamaRunner()("P")

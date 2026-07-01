@@ -8,19 +8,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 - `batch` now detects **stale outputs**. `translate` records a small manifest next to each
-  episode's state (source fingerprint + target + provider/model + prompt version). On a later
-  `batch` run an existing output is reported as `stale` — surfaced as a warning, never silently
-  overwritten — when its source, provider/model or prompt changed since it was written, instead of
-  being skipped as up to date. Unchanged outputs are still skipped; use `--force` to retranslate.
+  episode's state (source fingerprint + target + provider/model + reasoning effort + prompt
+  version). On a later `batch` run an existing output is reported as `stale` — surfaced as a
+  warning, never silently overwritten — when its source, provider/model, reasoning or prompt
+  changed since it was written, instead of being skipped as up to date. Unchanged outputs are
+  still skipped; use `--force` to retranslate.
   Outputs produced before this release have no manifest and are treated as up to date (skipped),
   not stale. (An explicit `--model` change is detected; relying on a provider's built-in default
   and that default later changing is not.)
 - Property-based tests (`hypothesis`) for the deterministic extraction/reinsertion core: generated
   events (plain text, whole-line ASS override blocks, CJK/accented Unicode, speakers, overlapping
   timings) assert the round-trip invariants — sequential unique ids, one unit per translatable
-  event, identity round-trip preserves text/speaker, and `flatten_overlaps` leaves no timed overlap.
+  event, identity round-trip preserves text/speaker, and `flatten_overlaps` both leaves no timed
+  overlap and preserves the exact set of visible lines active at every instant (temporal/textual
+  equivalence, not just absence of overlaps).
 - `CONTRIBUTING.md` now documents the deliberate design decisions and known limitations so settled
   trade-offs aren't repeatedly re-reported as bugs.
+- Dependabot config (`.github/dependabot.yml`): weekly grouped update PRs for the Python
+  dependencies and the GitHub Actions used in CI.
 
 ### Changed
 - Runtime dependencies gained upper caps (`pydantic<3`, `pysubs2<2`, `typer<1`, `rich<15`) so the
@@ -30,6 +35,13 @@ All notable changes to this project are documented here. The format follows
   keys (it validates the raw model reply), and legacy files without the field load as version 1.
 
 ### Fixed
+- The Ollama host is now validated: an explicit scheme is accepted only when it is `http`/`https`
+  (`file://`, `ftp://`, etc. are rejected with a clear error), while a bare `host:port` still gets
+  `http://`. Previously any string starting with `http` was passed through and other schemes were
+  silently mangled into a request.
+- Corrected two stale documentation claims: the README non-goal now says only *fuzzing the parser*
+  is out of scope (the project does property-test its own extraction/reinsertion core), and
+  `CONTRIBUTING.md` now states the `litellm` extra is smoke-imported in CI rather than not exercised.
 - Multiline cues are no longer ambiguous in the translation prompt. A cue with an internal line
   break carries a real newline, which previously split the `[ID] Speaker: text` line into an
   unlabeled second physical line the model couldn't attribute to an id. The break is now serialized

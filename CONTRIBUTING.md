@@ -129,8 +129,9 @@ Real gaps we know about. Don't silently close them, and don't re-file them as ne
   the character budget, not that meaning was preserved.
 - **`flatten_overlaps` has a quadratic worst case** on pathologically dense `.srt` files; ordinary
   subtitles are unaffected.
-- **The `litellm` extra isn't exercised in CI** (`uv sync` runs without extras), so that adapter is
-  covered only by argv tests, not an install-path run.
+- **The `litellm` extra is only smoke-tested in CI.** The main test job runs without extras; a
+  separate job installs `.[litellm]` and imports the runner, so the install path is checked but the
+  adapter's request/response handling is covered only by argv/mock tests, not a live model call.
 
 ## Support and compatibility
 

@@ -33,6 +33,9 @@ class OutputManifest(BaseModel):
     target: str
     provider: str
     model: str
+    # Reasoning effort steers the output (e.g. Codex), so a change should flag the output stale.
+    # Defaults to "" so a manifest written before this field loads as "no reasoning recorded".
+    reasoning: str = ""
     prompt_version: int = TRANSLATION_PROMPT_VERSION
 
 
@@ -65,6 +68,8 @@ def describe_change(stored: OutputManifest, current: OutputManifest) -> str:
         changed.append("source")
     if stored.provider != current.provider or stored.model != current.model:
         changed.append("provider/model")
+    if stored.reasoning != current.reasoning:
+        changed.append("reasoning")
     if stored.prompt_version != current.prompt_version:
         changed.append("prompt")
     return ", ".join(changed) or "settings"

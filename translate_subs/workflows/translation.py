@@ -147,6 +147,7 @@ def translate_subtitle(
         target=target,
         provider=provider,
         model=model or "",
+        reasoning=reasoning or "",
     )
     out_manifest_path = manifest_path(project_name, target, episode_name)
     if out_file.exists() and not force:
