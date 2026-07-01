@@ -212,11 +212,13 @@ files without the fingerprint are left alone.
 ### Review and readability (optional)
 
 ```bash
-# Review and apply only safe fixes (confirmed gender, glossary, names…)
+# Review and apply only safe fixes (confirmed gender, glossary, names…).
+# --apply previews the diff and asks before writing; --non-interactive/--yes skips the prompt.
 llm-subs review "$EP" "$OUT" --provider claude \
   --project "Your project" --apply --non-interactive
 
-# Readability control: compact lines that exceed the on-screen limits
+# Readability control: compact lines that exceed the on-screen limits.
+# --apply previews the diff and asks before overwriting (add --yes to skip the prompt).
 # (pass --source "$EP" when "$OUT" lives in a separate --out-dir, so the report is filed
 # under the same episode directory as the checkpoint/context)
 llm-subs tighten "$OUT" --provider claude \

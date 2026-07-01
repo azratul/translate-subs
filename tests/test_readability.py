@@ -145,6 +145,39 @@ def test_tighten_applies_compaction(tmp_path, monkeypatch):
     assert reloaded.events[1].plaintext == "Hola."
 
 
+def test_tighten_apply_confirm_declined_writes_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+
+    subs = pysubs2.SSAFile()
+    subs.events.append(
+        pysubs2.SSAEvent(start=0, end=2000, text="This is a needlessly long subtitle line here.")
+    )
+    srt = tmp_path / "ep01.es.srt"
+    subs.save(str(srt), format_="srt")
+
+    seen: list[tuple[str, str, str]] = []
+
+    def confirm(changes):
+        seen.extend(changes)
+        return False
+
+    result = pipeline.tighten_subtitle(
+        srt,
+        project="Serie",
+        apply=True,
+        confirm=confirm,
+        runner=lambda _: json.dumps({"0001": "Línea corta."}),
+    )
+
+    assert seen == [("0001", "This is a needlessly long subtitle line here.", "Línea corta.")]
+    assert result.n_applied == 0
+    assert result.applied_compactions == []
+    reloaded = pysubs2.load(str(srt))
+    assert (
+        reloaded.events[0].plaintext == "This is a needlessly long subtitle line here."
+    )  # untouched
+
+
 def test_readability_limits_reject_non_positive():
     ReadabilityLimits()  # defaults are valid
     for bad in (

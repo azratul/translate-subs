@@ -41,6 +41,10 @@ from translate_subs.workflows.support import (
 )
 
 RunnerFactory = Callable[..., Callable[[str], str]]
+# Consulted before an --apply run overwrites lines: receives the planned (id, before, after)
+# replacements and returns whether to write them. None keeps the caller's old behaviour (apply
+# without prompting), so only the CLI, which passes a real gate, prompts for confirmation.
+ApplyConfirm = Callable[[list[tuple[str, str, str]]], bool]
 
 
 def review_translation(
@@ -55,6 +59,7 @@ def review_translation(
     max_chars: int = DEFAULT_MAX_CHARS,
     use_llm: bool = True,
     apply: bool = False,
+    confirm: ApplyConfirm | None = None,
     provider: str = "claude",
     model: str | None = None,
     reasoning: str | None = None,
@@ -189,7 +194,7 @@ def review_translation(
                     continue
                 planned_fixes.append((fix.id or "", actual_text, fix.suggested))
                 seen_ids.add(fix.id or "")
-        if apply:
+        if apply and planned_fixes and (confirm is None or confirm(planned_fixes)):
             for fix_id, old_text, new_text in planned_fixes:
                 replace_visible_text(target_subs.events[index_by_id[fix_id]], new_text)
                 applied_fixes.append((fix_id, old_text, new_text))
@@ -243,6 +248,7 @@ def tighten_subtitle(
     limits: ReadabilityLimits | None = None,
     use_llm: bool = True,
     apply: bool = False,
+    confirm: ApplyConfirm | None = None,
     provider: str = "claude",
     model: str | None = None,
     reasoning: str | None = None,
@@ -290,6 +296,9 @@ def tighten_subtitle(
     n_applied = 0
     n_residual = 0
     applied_compactions: list[tuple[str, str, str]] = []
+    # (event_index, id, before, after) for the compactions that would be written. Collected first
+    # so the CLI can show the diff and confirm before any line is overwritten.
+    planned: list[tuple[int, str, str, str]] = []
     for line in flagged:
         compact = compactions.get(line.id)
         residual: list[str] = []
@@ -302,12 +311,10 @@ def tighten_subtitle(
             # violation or grows the text is kept out of the file (reported, not applied).
             improved = is_safe_improvement(line.metrics, new_metrics, limits)
             rejected = not improved
-            if apply and improved:
-                replace_visible_text(event, compact)
-                applied_compactions.append((line.id, line.text, compact))
-                n_applied += 1
-            if residual and improved:
-                n_residual += 1
+            if improved:
+                planned.append((line.event_index, line.id, line.text, compact))
+                if residual:
+                    n_residual += 1
         entries.append(
             ReadabilityEntry(
                 id=line.id,
@@ -319,8 +326,16 @@ def tighten_subtitle(
             )
         )
 
-    if apply and n_applied:
-        atomic_save(subs, translated_path, validate=validate_file)
+    proceed = apply and bool(planned)
+    if proceed and confirm is not None:
+        proceed = confirm([(pid, old, new) for _, pid, old, new in planned])
+    if proceed:
+        for event_index, pid, old, new in planned:
+            replace_visible_text(subs.events[event_index], new)
+            applied_compactions.append((pid, old, new))
+            n_applied += 1
+        if n_applied:
+            atomic_save(subs, translated_path, validate=validate_file)
 
     # Resolve project/episode/target the same way translate and review do, so the readability
     # report lands in the same per-episode directory as the rest of that episode's state instead

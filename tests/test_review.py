@@ -372,6 +372,92 @@ def test_review_translation_applies_only_safe_fixes(tmp_path, monkeypatch):
     assert f"Translated fingerprint: {expected}" in report_text
 
 
+def _gender_fix_review_fixture(tmp_path, monkeypatch):
+    """A source/translation pair plus memory where one confirmed-gender safe fix is available."""
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    src = pysubs2.SSAFile()
+    src.styles["White"] = pysubs2.SSAStyle()
+    e1 = pysubs2.SSAEvent(start=1000, end=3000, text="I'm tired of this.", style="White")
+    e1.name = (
+        "Yumi"  # ASS keeps the speaker name; SRT would drop it and the gender fix couldn't map
+    )
+    src.events.append(e1)
+    source_path = tmp_path / "ep01.en.ass"
+    src.save(str(source_path))
+
+    translated = pysubs2.SSAFile()
+    translated.events.append(pysubs2.SSAEvent(start=1000, end=3000, text="Estoy cansado de esto."))
+    translated_path = tmp_path / "ep01.es.srt"
+    translated.save(str(translated_path), format_="srt")
+
+    project_dir = tmp_path / "projects" / "Serie" / "es-latam"
+    project_dir.mkdir(parents=True)
+    (project_dir / "memory.json").write_text(
+        json.dumps({"characters": [{"name": "Yumi", "gender": "female"}]}), encoding="utf-8"
+    )
+
+    def fake_runner(prompt: str) -> str:
+        return json.dumps(
+            [
+                {
+                    "scope": "line",
+                    "id": "0001",
+                    "kind": "gender",
+                    "message": "wrong gender",
+                    "current": "Estoy cansado de esto.",
+                    "suggested": "Estoy cansada de esto.",
+                    "auto_safe": True,
+                }
+            ]
+        )
+
+    return source_path, translated_path, fake_runner
+
+
+def test_review_apply_confirm_declined_writes_nothing(tmp_path, monkeypatch):
+    source_path, translated_path, fake_runner = _gender_fix_review_fixture(tmp_path, monkeypatch)
+
+    result = pipeline.review_translation(
+        source_path,
+        translated_path,
+        project="Serie",
+        interactive=False,
+        apply=True,
+        confirm=lambda changes: False,
+        runner=fake_runner,
+    )
+
+    assert result.n_applied == 0
+    assert result.applied_fixes == []
+    assert result.planned_fixes  # the fix was found, just not written
+    reloaded = pysubs2.load(str(translated_path))
+    assert reloaded.events[0].plaintext == "Estoy cansado de esto."  # untouched
+
+
+def test_review_apply_confirm_receives_planned_and_writes(tmp_path, monkeypatch):
+    source_path, translated_path, fake_runner = _gender_fix_review_fixture(tmp_path, monkeypatch)
+    seen: list[tuple[str, str, str]] = []
+
+    def confirm(changes):
+        seen.extend(changes)
+        return True
+
+    result = pipeline.review_translation(
+        source_path,
+        translated_path,
+        project="Serie",
+        interactive=False,
+        apply=True,
+        confirm=confirm,
+        runner=fake_runner,
+    )
+
+    assert seen == [("0001", "Estoy cansado de esto.", "Estoy cansada de esto.")]
+    assert result.n_applied == 1
+    reloaded = pysubs2.load(str(translated_path))
+    assert reloaded.events[0].plaintext == "Estoy cansada de esto."
+
+
 def test_review_apply_skips_conflicting_same_line_fixes(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
 

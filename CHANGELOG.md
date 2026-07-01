@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-01
+
 ### Added
 - `batch` now detects **stale outputs**. `translate` records a small manifest next to each
   episode's state (source fingerprint + target + provider/model + reasoning effort + prompt
@@ -26,6 +28,12 @@ All notable changes to this project are documented here. The format follows
   trade-offs aren't repeatedly re-reported as bugs.
 - Dependabot config (`.github/dependabot.yml`): weekly grouped update PRs for the Python
   dependencies and the GitHub Actions used in CI.
+- `review --apply` and `tighten --apply` now **preview the diff and ask for confirmation** before
+  overwriting any line, since each fix/compaction is a whole-line replacement. Pass
+  `--non-interactive`/`--yes`/`-y` to apply without the prompt (as before). `tighten` gained the
+  `--yes`/`-y` alias for this.
+- The test suite now runs with `filterwarnings = ["error"]`, so a `DeprecationWarning` from a
+  dependency (or our own code) fails CI instead of scrolling past unnoticed.
 
 ### Changed
 - Runtime dependencies gained upper caps (`pydantic<3`, `pysubs2<2`, `typer<1`, `rich<15`) so the
@@ -573,7 +581,8 @@ First tagged release.
   (`extra="forbid"`) and validate on assignment; unexpected LLM gender values fold to `unknown`
   instead of entering memory.
 
-[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/azratul/llm-subs/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/azratul/llm-subs/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/azratul/llm-subs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/azratul/llm-subs/compare/v0.2.8...v0.3.0
 [0.2.8]: https://github.com/azratul/llm-subs/compare/v0.2.7...v0.2.8

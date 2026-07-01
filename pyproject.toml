@@ -1,6 +1,6 @@
 [project]
 name = "llm-subs"
-version = "0.4.0"
+version = "0.5.0"
 description = "Contextual subtitle translator (any language to any language) that preserves timing and ASS structure, driven by LLM agent CLIs."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -83,3 +83,8 @@ python_version = "3.11"
 ignore_missing_imports = true       # pysubs2/litellm ship no type stubs
 warn_unused_ignores = true
 exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+# Warnings are errors: a DeprecationWarning from a dependency (or our own code) fails the suite
+# instead of scrolling past, so upstream deprecations are caught before they become breakage.
+filterwarnings = ["error"]

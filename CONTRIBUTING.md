@@ -122,11 +122,11 @@ general "this looks unsafe" — the reasoning is what a PR needs to overturn.
 
 Real gaps we know about. Don't silently close them, and don't re-file them as new:
 
-- **`review --apply` replaces the whole line** for a "glossary"/"proper_name" safe fix; the guard
-  confirms the suggestion contains the expected rendering but doesn't diff-limit the change to just
-  that term. Treat `--apply` as suggestion-acceptance and review the diff.
-- **`tighten --apply` writes compactions without semantic validation** — it checks the result fits
-  the character budget, not that meaning was preserved.
+- **`review --apply`/`tighten --apply` replace the whole line**, not just the changed term, and
+  `tighten` checks only that a compaction fits the character budget, not that meaning was preserved.
+  This is no longer *silent*: by default both preview the diff and ask before writing (skip with
+  `--yes`), so review the diff before confirming. Diff-limiting a replacement to just the changed
+  span is still unimplemented.
 - **`flatten_overlaps` has a quadratic worst case** on pathologically dense `.srt` files; ordinary
   subtitles are unaffected.
 - **The `litellm` extra is only smoke-tested in CI.** The main test job runs without extras; a

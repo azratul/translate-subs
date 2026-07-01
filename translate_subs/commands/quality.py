@@ -20,6 +20,25 @@ def _print_diff_table(console, fixes: list[tuple[str, str, str]], title: str) ->
     console.print(table)
 
 
+def _make_apply_confirm(console, status, non_interactive: bool, title: str, noun: str):
+    """A confirm gate for --apply: show the diff and ask before overwriting whole lines.
+
+    Each change replaces a whole line, so a silent write is risky; the default (interactive) run
+    previews the diff and asks. `--non-interactive`/`--yes` opts out of the prompt and applies.
+    The live spinner is stopped first, since it runs while the workflow (and this gate) executes
+    and would otherwise redraw over the prompt.
+    """
+    if non_interactive:
+        return None
+
+    def _confirm(changes: list[tuple[str, str, str]]) -> bool:
+        status.stop()
+        _print_diff_table(console, changes, title)
+        return typer.confirm(f"Apply {len(changes)} {noun} to the subtitle file?", default=False)
+
+    return _confirm
+
+
 _AI_PROVIDER_HELP = "claude | codex | antigravity | opencode | ollama | litellm"
 # Options that fall through to project settings.json when not given on the command line.
 _AUX_DEFAULTED = ("provider", "model", "target", "lang", "reasoning")
@@ -65,27 +84,33 @@ def review(
     model = overrides.get("model", model)
     reasoning = overrides.get("reasoning", reasoning)
     lang = overrides.get("lang", lang)
+    status = runtime.console.status("Reviewing…", spinner="dots")
+    status.start()
     try:
-        with runtime.console.status("Reviewing…", spinner="dots"):
-            result = runtime.review_translation(
-                source,
-                translated,
-                target=target,
-                track_index=track,
-                lang=lang,
-                project=project,
-                interactive=not non_interactive,
-                max_chars=max_chars,
-                use_llm=not no_llm,
-                apply=apply,
-                provider=provider,
-                model=model,
-                reasoning=reasoning,
-                max_retries=retries,
-            )
+        result = runtime.review_translation(
+            source,
+            translated,
+            target=target,
+            track_index=track,
+            lang=lang,
+            project=project,
+            interactive=not non_interactive,
+            max_chars=max_chars,
+            use_llm=not no_llm,
+            apply=apply,
+            confirm=_make_apply_confirm(
+                runtime.console, status, non_interactive, "Suggested fixes", "safe fix(es)"
+            ),
+            provider=provider,
+            model=model,
+            reasoning=reasoning,
+            max_retries=retries,
+        )
     except runtime._EXPECTED_ERRORS as exc:
         runtime.console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1)
+    finally:
+        status.stop()
 
     report = result.report
     runtime.console.print(
@@ -103,9 +128,13 @@ def review(
             "source (merged .srt). Review and apply fixes on the .ass output instead."
         )
     elif apply:
-        runtime.console.print(f"Applied [green]{result.n_applied}[/green] safe fix(es).")
-        if result.applied_fixes:
-            _print_diff_table(runtime.console, result.applied_fixes, "Applied fixes")
+        if result.n_applied:
+            runtime.console.print(f"Applied [green]{result.n_applied}[/green] safe fix(es).")
+            # In an interactive run the diff was already shown by the confirm prompt.
+            if non_interactive and result.applied_fixes:
+                _print_diff_table(runtime.console, result.applied_fixes, "Applied fixes")
+        else:
+            runtime.console.print("[dim]No safe fixes applied.[/dim]")
     elif result.planned_fixes:
         runtime.console.print(
             f"[dim]{len(result.planned_fixes)} safe fix(es) available — use --apply to write.[/dim]"
@@ -140,6 +169,9 @@ def tighten(
         "--apply",
         help="Write the compacted lines back to the subtitle file.",
     ),
+    non_interactive: bool = typer.Option(
+        False, "--non-interactive", "--yes", "-y", help="Apply without the confirmation prompt."
+    ),
 ):
     """Flag subtitles that break readability limits and compact them via the LLM."""
     runtime = _runtime()
@@ -153,33 +185,45 @@ def tighten(
         max_lines=max_lines,
         max_chars_per_second=max_cps,
     )
+    status = runtime.console.status("Checking readability…", spinner="dots")
+    status.start()
     try:
-        with runtime.console.status("Checking readability…", spinner="dots"):
-            result = runtime.tighten_subtitle(
-                translated,
-                target=target,
-                project=project,
-                source=source,
-                limits=limits,
-                use_llm=not no_llm,
-                apply=apply,
-                provider=provider,
-                model=model,
-                reasoning=reasoning,
-                max_retries=retries,
-            )
+        result = runtime.tighten_subtitle(
+            translated,
+            target=target,
+            project=project,
+            source=source,
+            limits=limits,
+            use_llm=not no_llm,
+            apply=apply,
+            confirm=_make_apply_confirm(
+                runtime.console, status, non_interactive, "Suggested compactions", "compaction(s)"
+            ),
+            provider=provider,
+            model=model,
+            reasoning=reasoning,
+            max_retries=retries,
+        )
     except runtime._EXPECTED_ERRORS as exc:
         runtime.console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1)
+    finally:
+        status.stop()
 
     runtime.console.print(
         f"Checked [bold]{result.n_subs}[/bold] subtitles: "
         f"{result.n_flagged} over limit, {result.n_compacted} compacted."
     )
     if apply:
-        runtime.console.print(f"Applied [green]{result.n_applied}[/green] compaction(s).")
-        if result.applied_compactions:
-            _print_diff_table(runtime.console, result.applied_compactions, "Applied compactions")
+        if result.n_applied:
+            runtime.console.print(f"Applied [green]{result.n_applied}[/green] compaction(s).")
+            # In an interactive run the diff was already shown by the confirm prompt.
+            if non_interactive and result.applied_compactions:
+                _print_diff_table(
+                    runtime.console, result.applied_compactions, "Applied compactions"
+                )
+        else:
+            runtime.console.print("[dim]No compactions applied.[/dim]")
     if result.n_residual:
         runtime.console.print(
             f"[yellow]{result.n_residual} still over limit after compaction.[/yellow]"
