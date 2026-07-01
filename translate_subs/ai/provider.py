@@ -117,7 +117,8 @@ def retry_provider_call(
                     delay = min(backoff_cap, base_delay + jitter)
                 if delay > 0:
                     sleep(delay)
-    assert last_error is not None
+    if last_error is None:  # unreachable: the loop always runs and only exits here after a failure
+        raise ProviderError(f"{label} failed after {attempts} attempt(s).", retryable=False)
     raise ProviderError(
         f"{label} failed after {attempts} attempt(s): {last_error}",
         retryable=last_error.retryable,

@@ -32,6 +32,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 - Widen `rich` support to include the 15.x series (dependency cap raised to `<16`).
+- Two internal `assert` invariants (retry exhaustion, post-save validation) are now explicit
+  `raise`s, so the guards hold under `python -O` (which strips `assert`).
 
 ### Fixed
 - Docs: `.srt` output preserves whole-line **italic/underline**, not bold — pysubs2's SRT writer

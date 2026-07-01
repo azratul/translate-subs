@@ -246,7 +246,8 @@ def translate_subtitle(
         return validate_output_fn(path, units, check_fidelity=True)
 
     validation = atomic_save(subs, out_file, fmt=fmt, validate=validate_rendered)
-    assert validation is not None
+    if validation is None:  # atomic_save returns a result whenever a validator is passed
+        raise PipelineError("Internal error: the rendered output was not validated.")
     # Record what produced this output so a later `batch` run can tell up-to-date from stale.
     write_manifest(out_manifest_path, out_manifest)
     return TranslateResult(
