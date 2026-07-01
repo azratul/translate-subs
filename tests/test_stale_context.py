@@ -6,10 +6,15 @@ import pysubs2
 import pytest
 
 from translate_subs import config, pipeline
-from translate_subs.ai.analysis import EpisodeContext, source_digest
+from translate_subs.ai.analysis import (
+    EpisodeContext,
+    analysis_signature_for,
+    source_digest,
+)
 from translate_subs.domain.models import TranslatableUnit
 from translate_subs.subs import document
 from translate_subs.subs.extractor import extract_units
+from translate_subs.workflows.models import AnalysisCurrentError
 from translate_subs.workflows.support import context_path, episode_key
 
 _ANALYSIS_REPLY = (
@@ -70,6 +75,66 @@ def test_analyze_stores_and_merges_source_hash(tmp_path, monkeypatch):
     assert saved.source_hash == source_digest(units)
     # The analysis findings were merged into series memory.
     assert result.merge.applied
+
+
+def test_analyze_records_signature_and_pre_analyze_skips_when_current(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    src = tmp_path / "ep.en.srt"
+    _save_srt(src, "Aya draws her sword.")
+    kw = dict(project="P", interactive=False, provider="claude", runner=lambda _p: _ANALYSIS_REPLY)
+
+    result = pipeline.analyze_subtitle(src, **kw)
+    saved = EpisodeContext.model_validate_json(result.context_path.read_text("utf-8"))
+    assert saved.analysis_signature == analysis_signature_for("claude", None)
+
+    # Same source and same provenance -> already current.
+    with pytest.raises(AnalysisCurrentError):
+        pipeline.analyze_subtitle(src, skip_if_current=True, **kw)
+
+
+def test_pre_analyze_reanalyzes_when_backend_changed(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    src = tmp_path / "ep.en.srt"
+    _save_srt(src, "Aya draws her sword.")
+    calls: list[int] = []
+
+    def runner(_prompt):
+        calls.append(1)
+        return _ANALYSIS_REPLY
+
+    pipeline.analyze_subtitle(src, project="P", interactive=False, provider="claude", runner=runner)
+    # Unchanged source but a different backend: the cached context is superseded, so re-analyze.
+    pipeline.analyze_subtitle(
+        src,
+        project="P",
+        interactive=False,
+        provider="codex",
+        skip_if_current=True,
+        runner=runner,
+    )
+    assert len(calls) == 2  # analyzed both times, not skipped
+
+
+def test_pre_analyze_skips_legacy_context_without_signature(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECTS_DIR", tmp_path / "projects")
+    src = tmp_path / "ep.en.srt"
+    _save_srt(src, "Hello.")
+    units = extract_units(document.load(src))
+
+    ctx_file = context_path("P", "es-latam", episode_key(src))
+    ctx_file.parent.mkdir(parents=True, exist_ok=True)
+    # Legacy: a source hash but no analysis signature -> trusted as current, not forced to refresh.
+    ctx_file.write_text(
+        EpisodeContext(source_hash=source_digest(units)).model_dump_json(), encoding="utf-8"
+    )
+    with pytest.raises(AnalysisCurrentError):
+        pipeline.analyze_subtitle(
+            src,
+            project="P",
+            interactive=False,
+            skip_if_current=True,
+            runner=lambda _p: _ANALYSIS_REPLY,
+        )
 
 
 def test_context_not_written_if_memory_merge_fails(tmp_path, monkeypatch):

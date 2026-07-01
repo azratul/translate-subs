@@ -21,6 +21,10 @@ All notable changes to this project are documented here. The format follows
   characters, style guide or episode context changed — a prompt change the source fingerprint alone
   can't see. Editing the glossary and re-running `batch` now flags affected outputs instead of
   skipping them. Manifests written before this field are tolerated (no spurious staleness).
+- `analyze`/`batch --pre-analyze` now record the **analysis provenance** (prompt version +
+  provider/model) on each episode context and re-analyze when it changed, instead of skipping on a
+  matching source fingerprint alone. Bumping the analysis prompt or switching backend refreshes
+  cached contexts; contexts written before this field are trusted as current (not force-refreshed).
 
 ### Changed
 - Widen `rich` support to include the 15.x series (dependency cap raised to `<16`).

@@ -9,6 +9,7 @@ from translate_subs import config
 from translate_subs.ai.analysis import (
     TRANSCRIPT_LIMIT,
     EpisodeContext,
+    analysis_signature_for,
     analyze_episode,
     source_digest,
 )
@@ -112,11 +113,20 @@ def analyze_subtitle(
 
     project_name, episode_name = project_episode(source, project)
 
+    signature = analysis_signature_for(provider, model)
     if skip_if_current:
         ep_ctx_path = context_path(project_name, target, episode_name)
         if ep_ctx_path.exists():
             existing = EpisodeContext.model_validate_json(ep_ctx_path.read_text("utf-8"))
-            if existing.source_hash and existing.source_hash == source_digest(units):
+            source_current = bool(existing.source_hash) and existing.source_hash == source_digest(
+                units
+            )
+            # Legacy tolerance: a context without a recorded signature is trusted as current rather
+            # than re-analyzed; once recorded, a prompt/provider/model change forces a refresh.
+            provenance_current = (
+                existing.analysis_signature is None or existing.analysis_signature == signature
+            )
+            if source_current and provenance_current:
                 raise AnalysisCurrentError(f"Context already current: {ep_ctx_path}")
 
     project_memory = ProjectMemory.load(memory_root(project_name, target))
@@ -127,8 +137,10 @@ def analyze_subtitle(
         prior_known=prior_known(project_memory),
         max_retries=max_retries,
     )
-    # Record the source fingerprint so later runs can detect a changed subtitle.
+    # Record the source fingerprint and analysis provenance so later runs can detect a changed
+    # subtitle or a superseded prompt/backend.
     context.source_hash = source_digest(units)
+    context.analysis_signature = signature
 
     # Merge into series memory *before* persisting the context file. The context's source_hash
     # is what `skip_if_current` trusts to decide an episode is already analyzed; if the file were

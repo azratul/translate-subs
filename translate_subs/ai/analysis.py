@@ -58,6 +58,19 @@ def output_source_digest(units: list[TranslatableUnit]) -> str:
 
 CONTEXT_SCHEMA_VERSION: Literal[1] = 1
 
+# Bump when the analysis prompt changes: folded into the context's provenance so `--pre-analyze`
+# re-analyzes an episode whose cached context predates the change instead of trusting it.
+ANALYSIS_PROMPT_VERSION = 1
+
+
+def analysis_signature_for(provider: str, model: str | None) -> str:
+    """Provenance of an analysis (prompt version + provider/model).
+
+    Stored on the context so `skip_if_current` can tell an up-to-date context from one produced by
+    a now-superseded prompt or a different backend — a change the source fingerprint can't see.
+    """
+    return f"{ANALYSIS_PROMPT_VERSION}|{provider}|{model or ''}"
+
 
 class EpisodeCharacter(BaseModel):
     name: str
@@ -79,6 +92,9 @@ class EpisodeContext(BaseModel):
     translation_rules: list[str] = Field(default_factory=list)
     # Fingerprint of the source it was analyzed from; None for legacy/older context files.
     source_hash: str | None = None
+    # Provenance of the analysis (prompt version + provider/model). None on legacy files, which are
+    # trusted as current rather than forced to re-analyze.
+    analysis_signature: str | None = None
 
 
 TRANSCRIPT_LIMIT = 4000  # lines; guards against pathological inputs.
