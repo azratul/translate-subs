@@ -15,8 +15,16 @@ All notable changes to this project are documented here. The format follows
   Outputs produced before this release have no manifest and are treated as up to date (skipped),
   not stale. (An explicit `--model` change is detected; relying on a provider's built-in default
   and that default later changing is not.)
+- Property-based tests (`hypothesis`) for the deterministic extraction/reinsertion core: generated
+  events (plain text, whole-line ASS override blocks, CJK/accented Unicode, speakers, overlapping
+  timings) assert the round-trip invariants — sequential unique ids, one unit per translatable
+  event, identity round-trip preserves text/speaker, and `flatten_overlaps` leaves no timed overlap.
+- `CONTRIBUTING.md` now documents the deliberate design decisions and known limitations so settled
+  trade-offs aren't repeatedly re-reported as bugs.
 
 ### Changed
+- Runtime dependencies gained upper caps (`pydantic<3`, `pysubs2<2`, `typer<1`, `rich<15`) so the
+  next breaking major is adopted deliberately with a test run rather than resolved in silently.
 - `EpisodeContext` (the saved `episode.context.json`) now carries a `schema_version` field so a
   future format change can detect and migrate older files. The model stays liberal about unknown
   keys (it validates the raw model reply), and legacy files without the field load as version 1.

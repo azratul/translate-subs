@@ -91,6 +91,47 @@ Run `llm-subs doctor --provider <name>` first; it checks each backend without an
 - **Embedded track issues** — `llm-subs probe <media>` to list tracks, then `--track <n>` or pass a
   sidecar directly. Image tracks (PGS/VobSub) are unsupported (they need OCR).
 
+## Deliberate design decisions — please don't re-report these
+
+The items below are recurring review findings that are **intentional** and have been audited. They
+are listed here so a reviewer (human or automated) can tell a settled trade-off from a fresh bug.
+If you believe one is actually wrong, open an issue with a concrete reproducing case rather than a
+general "this looks unsafe" — the reasoning is what a PR needs to overturn.
+
+- **`opencode` keeps `--pure` *and* an inline deny-all permission config.** `--pure` only drops
+  external plugins; built-in tools (read/bash/webfetch) stay allowed, so the deny-all is what
+  actually contains an untrusted cue. Do not "simplify" it to `--pure` alone.
+- **Every agent CLI runs from an empty throwaway `cwd` with its own tool/sandbox switches.**
+  `claude` denies all tools + `--strict-mcp-config`, `codex` is `--sandbox read-only`,
+  `antigravity` gets `--sandbox` (terminal-only — the weakest, hence discouraged for untrusted
+  input). No extra container is required beyond these.
+- **Internal state is written owner-only (0600); the final subtitle is widened to the umask.**
+  State can carry subtitle text and stays private; the output must be readable by a media server
+  running as another user (Jellyfin/Plex). The two modes are intentionally different.
+- **Series memory is segmented by the *full* target** (`es-latam` ≠ `es-es`), so variants of one
+  language never share glossary/characters/conflicts.
+- **Per-episode batch failures are recorded and skipped; `ProviderError` aborts the run.** A parse
+  error is per-episode; exhausted quota / broken auth is systemic, so it stops everything.
+- **The stale-output fingerprint hashes translation-relevant content (id/speaker/text), not timing
+  or styles.** A timing-only source edit does not change the translation, so it deliberately does
+  not flag the output as stale. `--strict-lang` stays translation-only (not on `analyze`/`review`).
+- **`.ass` output preserves non-translatable events verbatim** (drawings, comments, empty cues);
+  only `.srt` prunes them, because SRT has no positioning.
+
+## Known limitations — already tracked
+
+Real gaps we know about. Don't silently close them, and don't re-file them as new:
+
+- **`review --apply` replaces the whole line** for a "glossary"/"proper_name" safe fix; the guard
+  confirms the suggestion contains the expected rendering but doesn't diff-limit the change to just
+  that term. Treat `--apply` as suggestion-acceptance and review the diff.
+- **`tighten --apply` writes compactions without semantic validation** — it checks the result fits
+  the character budget, not that meaning was preserved.
+- **`flatten_overlaps` has a quadratic worst case** on pathologically dense `.srt` files; ordinary
+  subtitles are unaffected.
+- **The `litellm` extra isn't exercised in CI** (`uv sync` runs without extras), so that adapter is
+  covered only by argv tests, not an install-path run.
+
 ## Support and compatibility
 
 Maintained on a best-effort basis. See the **Versioning and compatibility policy** in the

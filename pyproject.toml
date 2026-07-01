@@ -20,10 +20,12 @@ dependencies = [
     # Floors track the versions the suite is actually run against. typer < 0.15.4 breaks with
     # Click >= 8.2 (e.g. `--help` raises on a clean install with Click 8.4.x); 0.15.4 is the first
     # release that works against it. The pysubs2 floor stays at the tested line.
-    "pysubs2>=1.8",
-    "typer>=0.15.4",
-    "pydantic>=2.7",
-    "rich>=13.7",
+    # Upper caps fence off the next major, which may change APIs we call (notably pydantic 2->3):
+    # a breaking major should be adopted deliberately with a test run, not resolved in silently.
+    "pysubs2>=1.8,<2",
+    "typer>=0.15.4,<1",
+    "pydantic>=2.7,<3",
+    "rich>=13.7,<15",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +42,7 @@ llm-subs = "translate_subs.cli:app"
 translate-subs = "translate_subs.cli:app" # backwards-compatible command alias
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6", "mypy>=1.10"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6", "mypy>=1.10", "hypothesis>=6.100"]
 
 [build-system]
 requires = ["hatchling"]
