@@ -1246,6 +1246,30 @@ def test_batch_cli_exits_nonzero_on_failure(tmp_path, monkeypatch):
     assert "failed" in res.stdout
 
 
+def test_batch_cli_fail_on_stale(tmp_path, monkeypatch):
+    from translate_subs import cli
+    from translate_subs.pipeline import BatchItem, BatchResult
+
+    monkeypatch.setattr(
+        cli,
+        "batch_translate",
+        lambda *a, **k: BatchResult(
+            items=[
+                BatchItem(
+                    tmp_path / "ep01.mkv", "translated", output_path=tmp_path / "ep01.es.ass"
+                ),
+                BatchItem(tmp_path / "ep02.mkv", "stale", error="source changed"),
+            ]
+        ),
+    )
+    # A stale output is a warning by default (exit 0) but fails under --fail-on-stale.
+    default = CliRunner().invoke(app, ["batch", str(tmp_path)])
+    assert default.exit_code == 0
+    strict = CliRunner().invoke(app, ["batch", str(tmp_path), "--fail-on-stale"])
+    assert strict.exit_code == 1
+    assert "stale" in strict.stdout
+
+
 # --- per-project settings ------------------------------------------------------------
 
 

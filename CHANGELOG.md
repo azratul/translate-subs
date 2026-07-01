@@ -25,6 +25,10 @@ All notable changes to this project are documented here. The format follows
   provider/model) on each episode context and re-analyze when it changed, instead of skipping on a
   matching source fingerprint alone. Bumping the analysis prompt or switching backend refreshes
   cached contexts; contexts written before this field are trusted as current (not force-refreshed).
+- `batch --fail-on-stale`: exit non-zero when any output was flagged **stale**
+  (source/model/prompt/memory changed since it was written), for personal automation that wants a
+  stale output to break the run rather than only warn. Symmetric with `--fail-on-untranslated`;
+  stale remains a warning by default.
 
 ### Changed
 - Widen `rich` support to include the 15.x series (dependency cap raised to `<16`).

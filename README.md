@@ -364,7 +364,8 @@ an existing output is **stale** — its source, provider/model or prompt changed
 — it is reported as such (a warning, not an error) rather than skipped, so you know to rerun it with
 `--force`; the existing file is never overwritten on its own. A summary table reports
 translated/skipped/stale/failed, and the command exits non-zero if any episode failed (or, with
-`--fail-on-untranslated`, if any line was left untranslated). Because each episode still checkpoints
+`--fail-on-untranslated`, if any line was left untranslated; or, with `--fail-on-stale`, if any
+output was flagged stale). Because each episode still checkpoints
 per block, interrupting a season and rerunning resumes mid-episode.
 
 With `--out-dir`, each input's sub-directory relative to the batch root is mirrored under it

@@ -290,6 +290,11 @@ def batch(
         "--fail-on-untranslated",
         help="Exit non-zero if any episode left a line untranslated.",
     ),
+    fail_on_stale: bool = typer.Option(
+        False,
+        "--fail-on-stale",
+        help="Exit non-zero if any output was flagged stale (source/model/prompt/memory changed).",
+    ),
     no_resume: bool = typer.Option(
         False, "--no-resume", help="Ignore saved checkpoints and re-translate every block."
     ),
@@ -437,6 +442,12 @@ def batch(
     )
 
     if result.n_failed:
+        raise typer.Exit(code=1)
+    if fail_on_stale and result.n_stale:
+        runtime.console.print(
+            f"[red]Failing:[/red] --fail-on-stale set and {result.n_stale} "
+            f"output(s) were stale (use --force to retranslate)."
+        )
         raise typer.Exit(code=1)
     if fail_on_untranslated and untranslated_total:
         runtime.console.print(
