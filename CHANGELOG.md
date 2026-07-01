@@ -25,6 +25,10 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - Widen `rich` support to include the 15.x series (dependency cap raised to `<16`).
 
+### Fixed
+- Docs: `.srt` output preserves whole-line **italic/underline**, not bold — pysubs2's SRT writer
+  doesn't emit `<b>`. The README previously claimed "italic/bold".
+
 ## [0.5.0] - 2026-07-01
 
 ### Added

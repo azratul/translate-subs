@@ -19,7 +19,8 @@ formality/register, relationships, per-series glossary, and tone.
   `[ID] Speaker: text`, returning the same IDs. On reinsertion the **whole-line leading override
   block** (`{\an8\pos(..)\c..}`) is restored, so in `.ass` position/color/scale/fade match the
   original; the event's **style** (alignment, color, font) is kept too. Inside-text tags and
-  karaoke are dropped. `.srt` has no positioning, so only basic italic/bold survives.
+  karaoke are dropped. `.srt` has no positioning, so only whole-line italic/underline survive
+  (pysubs2's SRT writer doesn't emit `<b>`, so bold is lost).
 
 In normal use, you point it at one movie/episode and get a translated subtitle next to the
 original file, ready for your player to pick up. For a series, you can optionally build a small
@@ -265,7 +266,8 @@ When the translated text is reinserted, the **whole-line leading override block*
 line keeps its original position, colour, scale and fade. Tags that sit *inside* the text are
 tied to the original wording and are dropped, as is karaoke (`\k`, per-syllable). `.ass` also
 preserves the event's style (alignment/colour/font). On a flat `.srt` the writer strips
-positioning anyway, so only basic italic/bold survive.
+positioning anyway, so only whole-line italic/underline survive (bold is dropped: pysubs2's SRT
+writer doesn't emit `<b>`).
 
 ```bash
 # .srt output (instead of the default .ass)
